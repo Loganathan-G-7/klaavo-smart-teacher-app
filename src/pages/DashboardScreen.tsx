@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, Home, BookOpen, CalendarOff, MessageCircle, User, Clock } from "lucide-react";
 
@@ -17,12 +17,44 @@ const navItems = [
   { icon: User, label: "Profile", active: false },
 ];
 
+const pad = (n: number) => String(n).padStart(2, "0");
+
 const DashboardScreen = () => {
   const [checkedIn, setCheckedIn] = useState(false);
+  const [checkInTime, setCheckInTime] = useState<Date | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
+
+  useEffect(() => {
+    if (checkedIn) {
+      intervalRef.current = setInterval(() => {
+        setElapsed((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [checkedIn]);
+
+  const handleToggle = () => {
+    if (!checkedIn) {
+      setCheckedIn(true);
+      setCheckInTime(new Date());
+      setElapsed(0);
+    } else {
+      setCheckedIn(false);
+    }
+  };
+
+  const hh = pad(Math.floor(elapsed / 3600));
+  const mm = pad(Math.floor((elapsed % 3600) / 60));
+  const ss = pad(elapsed % 60);
 
   return (
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
@@ -40,20 +72,42 @@ const DashboardScreen = () => {
           </button>
         </div>
 
-        {/* Check In/Out Button */}
-        <button
-          onClick={() => {
-            if (!checkedIn) navigate("/checkin");
-            else setCheckedIn(false);
-          }}
-          className={`w-full py-4 rounded-xl font-bold text-base shadow-card-lg transition-all active:scale-[0.98] ${
-            checkedIn
-              ? "bg-destructive text-destructive-foreground"
-              : "bg-success text-success-foreground"
-          }`}
-        >
-          {checkedIn ? "Check Out" : "Check In"}
-        </button>
+        {/* Timer Card */}
+        <div className="bg-[#1A1A1A] rounded-2xl p-5 flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="bg-[#2A2A2A] rounded-lg px-3 py-2 min-w-[48px] text-center">
+                <span className="text-2xl font-extrabold text-white font-mono">{hh}</span>
+              </div>
+              <span className="text-2xl font-bold text-white/40">:</span>
+              <div className="bg-[#2A2A2A] rounded-lg px-3 py-2 min-w-[48px] text-center">
+                <span className="text-2xl font-extrabold text-white font-mono">{mm}</span>
+              </div>
+              <span className="text-2xl font-bold text-white/40">:</span>
+              <div className="bg-[#2A2A2A] rounded-lg px-3 py-2 min-w-[48px] text-center">
+                <span className="text-2xl font-extrabold text-white font-mono">{ss}</span>
+              </div>
+            </div>
+            {checkedIn ? (
+              <p className="text-xs font-semibold mt-2 text-success">In</p>
+            ) : checkInTime ? (
+              <p className="text-xs font-semibold mt-2 text-destructive">Out</p>
+            ) : (
+              <p className="text-xs font-medium mt-2 text-white/40">Not checked in</p>
+            )}
+          </div>
+
+          <button
+            onClick={handleToggle}
+            className={`px-5 py-3 rounded-full font-bold text-sm shadow-card-lg transition-all active:scale-95 ${
+              checkedIn
+                ? "bg-destructive text-destructive-foreground"
+                : "bg-success text-success-foreground"
+            }`}
+          >
+            {checkedIn ? "Check-out" : "Check-in"}
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -66,7 +120,9 @@ const DashboardScreen = () => {
           <div>
             <p className="text-xs text-muted-foreground font-medium">Today's Status</p>
             <p className="text-sm font-bold text-foreground">
-              {checkedIn ? "Checked In at 9:00 AM" : "Not Checked In"}
+              {checkedIn && checkInTime
+                ? `Checked In at ${checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}`
+                : "Not Checked In"}
             </p>
           </div>
         </div>
