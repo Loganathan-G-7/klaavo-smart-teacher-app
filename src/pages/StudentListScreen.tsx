@@ -1,0 +1,162 @@
+import { useState } from "react";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { ArrowLeft, Search } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "@/hooks/use-toast";
+
+const studentsData = [
+  { id: 1, name: "Aarav Sharma", roll: "01", feesPending: true },
+  { id: 2, name: "Ananya Gupta", roll: "02", feesPending: false },
+  { id: 3, name: "Bhavya Patel", roll: "03", feesPending: false },
+  { id: 4, name: "Diya Verma", roll: "04", feesPending: true },
+  { id: 5, name: "Ishaan Kumar", roll: "05", feesPending: false },
+  { id: 6, name: "Kavya Singh", roll: "06", feesPending: false },
+  { id: 7, name: "Lakshay Mehra", roll: "07", feesPending: true },
+  { id: 8, name: "Myra Joshi", roll: "08", feesPending: false },
+  { id: 9, name: "Neha Reddy", roll: "09", feesPending: false },
+  { id: 10, name: "Pranav Iyer", roll: "10", feesPending: false },
+  { id: 11, name: "Riya Chopra", roll: "11", feesPending: true },
+  { id: 12, name: "Saanvi Nair", roll: "12", feesPending: false },
+];
+
+type AttendanceStatus = "P" | "A" | "L" | null;
+
+const StudentListScreen = () => {
+  const navigate = useNavigate();
+  const { classId } = useParams();
+  const location = useLocation();
+  const className = (location.state as any)?.className || "Class";
+
+  const [search, setSearch] = useState("");
+  const [attendance, setAttendance] = useState<Record<number, AttendanceStatus>>({});
+
+  const filtered = studentsData.filter((s) =>
+    s.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const getInitials = (name: string) =>
+    name.split(" ").map((w) => w[0]).join("").slice(0, 2);
+
+  const handleSave = () => {
+    toast({
+      title: "Attendance Saved",
+      description: `Attendance for ${className} has been saved successfully.`,
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
+      {/* Header */}
+      <div className="bg-primary px-6 pt-8 pb-5 rounded-b-[2rem]">
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-9 h-9 rounded-full bg-primary-foreground/10 flex items-center justify-center"
+          >
+            <ArrowLeft className="w-5 h-5 text-primary-foreground" />
+          </button>
+          <div>
+            <h1 className="text-primary-foreground text-lg font-bold">{className}</h1>
+            <p className="text-primary-foreground/60 text-xs">{studentsData.length} students</p>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary-foreground/40" />
+          <input
+            type="text"
+            placeholder="Search student..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-primary-foreground/10 text-primary-foreground placeholder:text-primary-foreground/40 rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary-foreground/20"
+          />
+        </div>
+      </div>
+
+      {/* Student List */}
+      <div className="flex-1 px-5 pt-4 pb-24 space-y-2">
+        {filtered.map((student) => (
+          <div
+            key={student.id}
+            className="bg-card rounded-xl p-3.5 shadow-card flex items-center gap-3"
+          >
+            {/* Avatar */}
+            <button
+              onClick={() =>
+                navigate(`/student/${student.id}`, {
+                  state: { studentName: student.name, className },
+                })
+              }
+              className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0"
+            >
+              <span className="text-sm font-bold text-primary">
+                {getInitials(student.name)}
+              </span>
+            </button>
+
+            {/* Info */}
+            <button
+              onClick={() =>
+                navigate(`/student/${student.id}`, {
+                  state: { studentName: student.name, className },
+                })
+              }
+              className="flex-1 text-left min-w-0"
+            >
+              <div className="flex items-center gap-2">
+                <p className="font-semibold text-foreground text-sm truncate">
+                  {student.name}
+                </p>
+                {student.feesPending && (
+                  <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30 text-[10px] px-1.5 py-0 hover:bg-amber-500/20 shrink-0">
+                    Fees Pending
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">Roll No: {student.roll}</p>
+            </button>
+
+            {/* Attendance Buttons */}
+            <div className="flex gap-1.5 shrink-0">
+              {(["P", "A", "L"] as AttendanceStatus[]).map((status) => (
+                <button
+                  key={status}
+                  onClick={() =>
+                    setAttendance((prev) => ({
+                      ...prev,
+                      [student.id]: prev[student.id] === status ? null : status,
+                    }))
+                  }
+                  className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                    attendance[student.id] === status
+                      ? status === "P"
+                        ? "bg-success text-success-foreground"
+                        : status === "A"
+                        ? "bg-destructive text-destructive-foreground"
+                        : "bg-amber-500 text-white"
+                      : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Save Button */}
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md px-5 pb-6 pt-3 bg-gradient-to-t from-background via-background to-transparent">
+        <button
+          onClick={handleSave}
+          className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-bold text-base shadow-card-lg transition-all hover:opacity-90 active:scale-[0.98]"
+        >
+          Save Attendance
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default StudentListScreen;
