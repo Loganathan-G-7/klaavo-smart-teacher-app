@@ -10,11 +10,11 @@ const classes = [
 ];
 
 const navItems = [
-  { icon: Home, label: "Home", active: true },
-  { icon: BookOpen, label: "Classes", active: false },
-  { icon: CalendarOff, label: "Leave", active: false },
-  { icon: MessageCircle, label: "Chat", active: false },
-  { icon: User, label: "Profile", active: false },
+  { icon: Home, label: "Home", active: true, path: "/dashboard" },
+  { icon: BookOpen, label: "Classes", active: false, path: "/classes" },
+  { icon: CalendarOff, label: "Leave", active: false, path: "/dashboard" },
+  { icon: MessageCircle, label: "Chat", active: false, path: "/dashboard" },
+  { icon: User, label: "Profile", active: false, path: "/dashboard" },
 ];
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -150,7 +150,7 @@ const DashboardScreen = () => {
       {/* Bottom Nav */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-card border-t border-border px-4 py-2 flex justify-around items-center shadow-card-lg">
         {navItems.map((item) => (
-          <button key={item.label} className="flex flex-col items-center gap-1 py-1 px-3">
+          <button key={item.label} onClick={() => navigate(item.path)} className="flex flex-col items-center gap-1 py-1 px-3">
             <item.icon className={`w-5 h-5 ${item.active ? "text-primary" : "text-muted-foreground"}`} />
             <span className={`text-[10px] font-semibold ${item.active ? "text-primary" : "text-muted-foreground"}`}>
               {item.label}

@@ -7,6 +7,9 @@ import LoginScreen from "./pages/LoginScreen";
 import OTPScreen from "./pages/OTPScreen";
 import DashboardScreen from "./pages/DashboardScreen";
 import CheckInScreen from "./pages/CheckInScreen";
+import MyClassesScreen from "./pages/MyClassesScreen";
+import StudentListScreen from "./pages/StudentListScreen";
+import StudentProfileScreen from "./pages/StudentProfileScreen";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +25,9 @@ const App = () => (
           <Route path="/otp" element={<OTPScreen />} />
           <Route path="/dashboard" element={<DashboardScreen />} />
           <Route path="/checkin" element={<CheckInScreen />} />
+          <Route path="/classes" element={<MyClassesScreen />} />
+          <Route path="/class/:classId" element={<StudentListScreen />} />
+          <Route path="/student/:studentId" element={<StudentProfileScreen />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
