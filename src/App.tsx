@@ -10,6 +10,10 @@ import CheckInScreen from "./pages/CheckInScreen";
 import MyClassesScreen from "./pages/MyClassesScreen";
 import StudentListScreen from "./pages/StudentListScreen";
 import StudentProfileScreen from "./pages/StudentProfileScreen";
+import LeaveScreen from "./pages/LeaveScreen";
+import ChatListScreen, { ChatScreen } from "./pages/ChatScreen";
+import NotificationsScreen from "./pages/NotificationsScreen";
+import ProfileScreen from "./pages/ProfileScreen";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +32,11 @@ const App = () => (
           <Route path="/classes" element={<MyClassesScreen />} />
           <Route path="/class/:classId" element={<StudentListScreen />} />
           <Route path="/student/:studentId" element={<StudentProfileScreen />} />
+          <Route path="/leave" element={<LeaveScreen />} />
+          <Route path="/chat" element={<ChatListScreen />} />
+          <Route path="/chat/:chatId" element={<ChatScreen />} />
+          <Route path="/notifications" element={<NotificationsScreen />} />
+          <Route path="/profile" element={<ProfileScreen />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
