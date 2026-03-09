@@ -10,11 +10,11 @@ const classes = [
 ];
 
 const navItems = [
-  { icon: Home, label: "Home", active: true },
-  { icon: BookOpen, label: "Classes", active: false },
-  { icon: CalendarOff, label: "Leave", active: false },
-  { icon: MessageCircle, label: "Chat", active: false },
-  { icon: User, label: "Profile", active: false },
+  { icon: Home, label: "Home", active: true, path: "/dashboard" },
+  { icon: BookOpen, label: "Classes", active: false, path: "/classes" },
+  { icon: CalendarOff, label: "Leave", active: false, path: "/dashboard" },
+  { icon: MessageCircle, label: "Chat", active: false, path: "/dashboard" },
+  { icon: User, label: "Profile", active: false, path: "/dashboard" },
 ];
 
 const pad = (n: number) => String(n).padStart(2, "0");
