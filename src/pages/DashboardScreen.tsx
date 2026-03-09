@@ -12,9 +12,9 @@ const classes = [
 const navItems = [
   { icon: Home, label: "Home", active: true, path: "/dashboard" },
   { icon: BookOpen, label: "Classes", active: false, path: "/classes" },
-  { icon: CalendarOff, label: "Leave", active: false, path: "/dashboard" },
-  { icon: MessageCircle, label: "Chat", active: false, path: "/dashboard" },
-  { icon: User, label: "Profile", active: false, path: "/dashboard" },
+  { icon: CalendarOff, label: "Leave", active: false, path: "/leave" },
+  { icon: MessageCircle, label: "Chat", active: false, path: "/chat" },
+  { icon: User, label: "Profile", active: false, path: "/profile" },
 ];
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -66,7 +66,7 @@ const DashboardScreen = () => {
             <h1 className="text-primary-foreground text-xl font-bold">Priya Sharma</h1>
             <p className="text-primary-foreground/60 text-xs mt-0.5">Delhi Public School</p>
           </div>
-          <button className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center relative">
+          <button onClick={() => navigate("/notifications")} className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center relative">
             <Bell className="w-5 h-5 text-primary-foreground" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-destructive rounded-full" />
           </button>
