@@ -66,7 +66,7 @@ const DashboardScreen = () => {
             <h1 className="text-primary-foreground text-xl font-bold">Priya Sharma</h1>
             <p className="text-primary-foreground/60 text-xs mt-0.5">Delhi Public School</p>
           </div>
-          <button className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center relative">
+          <button onClick={() => navigate("/notifications")} className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center relative">
             <Bell className="w-5 h-5 text-primary-foreground" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-destructive rounded-full" />
           </button>
