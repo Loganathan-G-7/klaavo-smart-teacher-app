@@ -41,6 +41,10 @@ const App = () => (
           <Route path="/chat/:chatId" element={<ChatScreen />} />
           <Route path="/notifications" element={<NotificationsScreen />} />
           <Route path="/profile" element={<ProfileScreen />} />
+          <Route path="/diary" element={<DailyDiaryScreen />} />
+          <Route path="/circulars" element={<CircularsScreen />} />
+          <Route path="/events" element={<EventsGalleryScreen />} />
+          <Route path="/remote-login" element={<RemoteLoginScreen />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
