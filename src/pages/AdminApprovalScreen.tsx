@@ -9,7 +9,6 @@ const initialRequests = [
   { id: 3, teacher: "Sunita Devi", type: "Emergency Leave", dates: "Mar 11", reason: "Urgent family emergency", status: "pending" },
   { id: 4, teacher: "Vikram Singh", type: "Earned Leave", dates: "Mar 20 - Mar 25", reason: "Personal travel planned months ago", status: "pending" },
 ] as { id: number; teacher: string; type: string; dates: string; reason: string; status: "pending" | "approved" | "rejected" }[];
-];
 
 const AdminApprovalScreen = () => {
   const navigate = useNavigate();
