@@ -14,6 +14,10 @@ import LeaveScreen from "./pages/LeaveScreen";
 import ChatListScreen, { ChatScreen } from "./pages/ChatScreen";
 import NotificationsScreen from "./pages/NotificationsScreen";
 import ProfileScreen from "./pages/ProfileScreen";
+import DailyDiaryScreen from "./pages/DailyDiaryScreen";
+import CircularsScreen from "./pages/CircularsScreen";
+import EventsGalleryScreen from "./pages/EventsGalleryScreen";
+import RemoteLoginScreen from "./pages/RemoteLoginScreen";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
