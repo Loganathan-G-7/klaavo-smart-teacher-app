@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Home, BookOpen, CalendarOff, MessageCircle, User, Clock, NotebookPen, FileText, Image, MapPinOff } from "lucide-react";
+import { Bell, Home, BookOpen, CalendarOff, MessageCircle, User, Clock, NotebookPen, FileText, Image, MapPinOff, CalendarDays, ClipboardList, ShieldCheck, Settings } from "lucide-react";
 
 const classes = [
   { name: "LKG-A", subject: "English", time: "9:30 AM", color: "bg-accent/20 text-accent" },
@@ -134,8 +134,12 @@ const DashboardScreen = () => {
             {[
               { icon: NotebookPen, label: "Diary", path: "/diary", color: "bg-accent/10 text-accent" },
               { icon: FileText, label: "Circulars", path: "/circulars", color: "bg-primary/10 text-primary" },
+              { icon: CalendarDays, label: "Timetable", path: "/timetable", color: "bg-success/10 text-success" },
+              { icon: ClipboardList, label: "Homework", path: "/homework", color: "bg-accent/10 text-accent" },
               { icon: Image, label: "Events", path: "/events", color: "bg-success/10 text-success" },
               { icon: MapPinOff, label: "Remote", path: "/remote-login", color: "bg-destructive/10 text-destructive" },
+              { icon: ShieldCheck, label: "Approvals", path: "/approvals", color: "bg-primary/10 text-primary" },
+              { icon: Settings, label: "Settings", path: "/settings", color: "bg-muted-foreground/10 text-muted-foreground" },
             ].map((action) => (
               <button key={action.label} onClick={() => navigate(action.path)} className="flex flex-col items-center gap-1.5 py-3 bg-card rounded-xl shadow-card active:scale-95 transition-transform">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${action.color}`}>

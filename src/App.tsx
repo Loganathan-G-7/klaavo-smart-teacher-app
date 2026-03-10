@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import SplashScreen from "./pages/SplashScreen";
 import LoginScreen from "./pages/LoginScreen";
 import OTPScreen from "./pages/OTPScreen";
 import DashboardScreen from "./pages/DashboardScreen";
@@ -18,6 +19,10 @@ import DailyDiaryScreen from "./pages/DailyDiaryScreen";
 import CircularsScreen from "./pages/CircularsScreen";
 import EventsGalleryScreen from "./pages/EventsGalleryScreen";
 import RemoteLoginScreen from "./pages/RemoteLoginScreen";
+import TimetableScreen from "./pages/TimetableScreen";
+import HomeworkScreen from "./pages/HomeworkScreen";
+import AdminApprovalScreen from "./pages/AdminApprovalScreen";
+import SettingsScreen from "./pages/SettingsScreen";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,7 +34,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<LoginScreen />} />
+          <Route path="/" element={<SplashScreen />} />
+          <Route path="/login" element={<LoginScreen />} />
           <Route path="/otp" element={<OTPScreen />} />
           <Route path="/dashboard" element={<DashboardScreen />} />
           <Route path="/checkin" element={<CheckInScreen />} />
@@ -45,6 +51,10 @@ const App = () => (
           <Route path="/circulars" element={<CircularsScreen />} />
           <Route path="/events" element={<EventsGalleryScreen />} />
           <Route path="/remote-login" element={<RemoteLoginScreen />} />
+          <Route path="/timetable" element={<TimetableScreen />} />
+          <Route path="/homework" element={<HomeworkScreen />} />
+          <Route path="/approvals" element={<AdminApprovalScreen />} />
+          <Route path="/settings" element={<SettingsScreen />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
