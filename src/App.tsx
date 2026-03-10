@@ -14,6 +14,10 @@ import LeaveScreen from "./pages/LeaveScreen";
 import ChatListScreen, { ChatScreen } from "./pages/ChatScreen";
 import NotificationsScreen from "./pages/NotificationsScreen";
 import ProfileScreen from "./pages/ProfileScreen";
+import DailyDiaryScreen from "./pages/DailyDiaryScreen";
+import CircularsScreen from "./pages/CircularsScreen";
+import EventsGalleryScreen from "./pages/EventsGalleryScreen";
+import RemoteLoginScreen from "./pages/RemoteLoginScreen";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +41,10 @@ const App = () => (
           <Route path="/chat/:chatId" element={<ChatScreen />} />
           <Route path="/notifications" element={<NotificationsScreen />} />
           <Route path="/profile" element={<ProfileScreen />} />
+          <Route path="/diary" element={<DailyDiaryScreen />} />
+          <Route path="/circulars" element={<CircularsScreen />} />
+          <Route path="/events" element={<EventsGalleryScreen />} />
+          <Route path="/remote-login" element={<RemoteLoginScreen />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Home, BookOpen, CalendarOff, MessageCircle, User, Clock } from "lucide-react";
+import { Bell, Home, BookOpen, CalendarOff, MessageCircle, User, Clock, NotebookPen, FileText, Image, MapPinOff } from "lucide-react";
 
 const classes = [
   { name: "LKG-A", subject: "English", time: "9:30 AM", color: "bg-accent/20 text-accent" },
@@ -124,6 +124,26 @@ const DashboardScreen = () => {
                 ? `Checked In at ${checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}`
                 : "Not Checked In"}
             </p>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div>
+          <h3 className="text-base font-bold text-foreground mb-3">Quick Actions</h3>
+          <div className="grid grid-cols-4 gap-3">
+            {[
+              { icon: NotebookPen, label: "Diary", path: "/diary", color: "bg-accent/10 text-accent" },
+              { icon: FileText, label: "Circulars", path: "/circulars", color: "bg-primary/10 text-primary" },
+              { icon: Image, label: "Events", path: "/events", color: "bg-success/10 text-success" },
+              { icon: MapPinOff, label: "Remote", path: "/remote-login", color: "bg-destructive/10 text-destructive" },
+            ].map((action) => (
+              <button key={action.label} onClick={() => navigate(action.path)} className="flex flex-col items-center gap-1.5 py-3 bg-card rounded-xl shadow-card active:scale-95 transition-transform">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${action.color}`}>
+                  <action.icon className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-semibold text-foreground">{action.label}</span>
+              </button>
+            ))}
           </div>
         </div>
 
