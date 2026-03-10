@@ -4,10 +4,11 @@ import { ArrowLeft, Check, X, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const initialRequests = [
-  { id: 1, teacher: "Anita Kumar", type: "Casual Leave", dates: "Mar 12 - Mar 13", reason: "Family function in hometown", status: "pending" as const },
-  { id: 2, teacher: "Rajesh Menon", type: "Medical Leave", dates: "Mar 14 - Mar 16", reason: "Doctor appointment and recovery", status: "pending" as const },
-  { id: 3, teacher: "Sunita Devi", type: "Emergency Leave", dates: "Mar 11", reason: "Urgent family emergency", status: "pending" as const },
-  { id: 4, teacher: "Vikram Singh", type: "Earned Leave", dates: "Mar 20 - Mar 25", reason: "Personal travel planned months ago", status: "pending" as const },
+  { id: 1, teacher: "Anita Kumar", type: "Casual Leave", dates: "Mar 12 - Mar 13", reason: "Family function in hometown", status: "pending" },
+  { id: 2, teacher: "Rajesh Menon", type: "Medical Leave", dates: "Mar 14 - Mar 16", reason: "Doctor appointment and recovery", status: "pending" },
+  { id: 3, teacher: "Sunita Devi", type: "Emergency Leave", dates: "Mar 11", reason: "Urgent family emergency", status: "pending" },
+  { id: 4, teacher: "Vikram Singh", type: "Earned Leave", dates: "Mar 20 - Mar 25", reason: "Personal travel planned months ago", status: "pending" },
+] as { id: number; teacher: string; type: string; dates: string; reason: string; status: "pending" | "approved" | "rejected" }[];
 ];
 
 const AdminApprovalScreen = () => {
