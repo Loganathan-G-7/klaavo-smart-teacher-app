@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Home, BookOpen, CalendarOff, MessageCircle, User, Clock } from "lucide-react";
+import { Bell, Home, BookOpen, CalendarOff, MessageCircle, User, Clock, NotebookPen, FileText, Image, MapPinOff } from "lucide-react";
 
 const classes = [
   { name: "LKG-A", subject: "English", time: "9:30 AM", color: "bg-accent/20 text-accent" },
