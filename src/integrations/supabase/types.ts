@@ -21,6 +21,8 @@ export type Database = {
           created_at: string
           date: string
           id: string
+          latitude: number | null
+          longitude: number | null
           status: string
           teacher_id: string
         }
@@ -30,6 +32,8 @@ export type Database = {
           created_at?: string
           date?: string
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           status?: string
           teacher_id: string
         }
@@ -39,6 +43,8 @@ export type Database = {
           created_at?: string
           date?: string
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           status?: string
           teacher_id?: string
         }
