@@ -2,11 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, MapPin, CheckCircle2, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+const pad = (n: number) => String(n).padStart(2, "0");
 
 const formatTimer = (seconds: number) => {
-  const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
-  const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
-  const s = String(seconds % 60).padStart(2, "0");
+  const h = pad(Math.floor(seconds / 3600));
+  const m = pad(Math.floor((seconds % 3600) / 60));
+  const s = pad(seconds % 60);
   return `${h}:${m}:${s}`;
 };
 
@@ -20,8 +24,32 @@ const CheckInScreen = () => {
 
   const now = new Date();
   const time = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
-
   const isLate = checkInTime ? checkInTime.getHours() >= 8 : false;
+
+  // Check if already checked in today
+  useEffect(() => {
+    const checkExisting = async () => {
+      const teacherId = localStorage.getItem("teacher_id");
+      if (!teacherId) return;
+      const today = new Date().toISOString().split("T")[0];
+      const { data } = await supabase
+        .from("attendance")
+        .select("*")
+        .eq("teacher_id", teacherId)
+        .eq("date", today)
+        .maybeSingle();
+
+      if (data?.check_in && !data?.check_out) {
+        setDone(true);
+        const [h, m, s] = data.check_in.split(":").map(Number);
+        const ci = new Date();
+        ci.setHours(h, m, s || 0, 0);
+        setCheckInTime(ci);
+        setElapsed(Math.floor((Date.now() - ci.getTime()) / 1000));
+      }
+    };
+    checkExisting();
+  }, []);
 
   useEffect(() => {
     if (done) {
@@ -34,32 +62,49 @@ const CheckInScreen = () => {
     };
   }, [done]);
 
-  const handleCheckIn = () => {
+  const handleCheckIn = async () => {
+    const teacherId = localStorage.getItem("teacher_id");
+    if (!teacherId) {
+      toast.error("Teacher not found. Please login again.");
+      return;
+    }
+
     setChecking(true);
+    const today = new Date().toISOString().split("T")[0];
+    const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+    const { error } = await supabase.from("attendance").insert({
+      teacher_id: teacherId,
+      date: today,
+      check_in: currentTime,
+      status: "present",
+    });
+
+    if (error) {
+      console.error("Check-in error:", error);
+      toast.error("Check-in failed. You may have already checked in today.");
+      setChecking(false);
+      return;
+    }
+
     setTimeout(() => {
       setChecking(false);
       setDone(true);
       setCheckInTime(new Date());
-    }, 1500);
+      setElapsed(0);
+      toast.success("Checked in successfully!");
+    }, 1000);
   };
 
   return (
     <div className="min-h-screen bg-card flex flex-col px-6 pt-6 pb-8 max-w-md mx-auto">
-      {/* Back */}
       <button onClick={() => navigate("/dashboard")} className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center mb-8">
         <ArrowLeft className="w-5 h-5 text-foreground" />
       </button>
 
       <div className="flex-1 flex flex-col items-center justify-center">
-        {/* Location Pin */}
-        <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 transition-colors ${
-          done ? "bg-success/20" : "bg-accent/20"
-        }`}>
-          {done ? (
-            <CheckCircle2 className="w-12 h-12 text-success" />
-          ) : (
-            <MapPin className="w-12 h-12 text-accent" />
-          )}
+        <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 transition-colors ${done ? "bg-success/20" : "bg-accent/20"}`}>
+          {done ? <CheckCircle2 className="w-12 h-12 text-success" /> : <MapPin className="w-12 h-12 text-accent" />}
         </div>
 
         <h2 className="text-lg font-bold text-foreground mb-1">
@@ -67,24 +112,18 @@ const CheckInScreen = () => {
         </h2>
         <p className="text-muted-foreground text-sm mb-4">Delhi Public School, Sector 24</p>
 
-        {/* Status Badge */}
         {done && (
           <Badge className={`mb-6 text-sm px-4 py-1 ${
-            isLate
-              ? "bg-amber-500/15 text-amber-600 border-amber-500/30 hover:bg-amber-500/20"
-              : "bg-success/15 text-success border-success/30 hover:bg-success/20"
+            isLate ? "bg-amber-500/15 text-amber-600 border-amber-500/30 hover:bg-amber-500/20" : "bg-success/15 text-success border-success/30 hover:bg-success/20"
           }`}>
             {isLate ? "Late" : "Present"}
           </Badge>
         )}
 
-        {/* Timer */}
         {done ? (
           <div className="bg-secondary rounded-xl px-8 py-5 mb-4 shadow-card text-center">
             <p className="text-xs text-muted-foreground font-medium mb-1">Duration</p>
-            <p className="text-4xl font-extrabold text-foreground tracking-tight font-mono">
-              {formatTimer(elapsed)}
-            </p>
+            <p className="text-4xl font-extrabold text-foreground tracking-tight font-mono">{formatTimer(elapsed)}</p>
           </div>
         ) : (
           <div className="bg-secondary rounded-xl px-8 py-4 mb-8 shadow-card">
@@ -93,35 +132,27 @@ const CheckInScreen = () => {
           </div>
         )}
 
-        {/* Check-in time */}
         {done && checkInTime && (
           <p className="text-xs text-muted-foreground mb-6">
             Checked in at {checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}
           </p>
         )}
 
-        {/* GPS Status */}
         <div className="flex items-center gap-2 mb-10">
           <Shield className="w-4 h-4 text-success" />
           <p className="text-sm font-medium text-success">You are within school premises</p>
         </div>
 
-        {/* Check In Button */}
         {!done && (
           <button
             onClick={handleCheckIn}
             disabled={checking}
             className="w-full py-4 rounded-xl bg-success text-success-foreground font-bold text-base shadow-card-lg transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-70"
           >
-            {checking ? (
-              <span className="animate-pulse-gentle">Verifying Location...</span>
-            ) : (
-              "Check In"
-            )}
+            {checking ? <span className="animate-pulse-gentle">Verifying Location...</span> : "Check In"}
           </button>
         )}
 
-        {/* Back to Dashboard */}
         {done && (
           <button
             onClick={() => navigate("/dashboard")}
