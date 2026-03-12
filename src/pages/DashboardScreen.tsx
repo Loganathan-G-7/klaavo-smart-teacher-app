@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, Home, BookOpen, CalendarOff, MessageCircle, User, Clock, NotebookPen, FileText, Image, MapPinOff, CalendarDays, ClipboardList, ShieldCheck, Settings } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const classes = [
   { name: "LKG-A", subject: "English", time: "9:30 AM", color: "bg-accent/20 text-accent" },
@@ -23,11 +25,45 @@ const DashboardScreen = () => {
   const [checkedIn, setCheckedIn] = useState(false);
   const [checkInTime, setCheckInTime] = useState<Date | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [teacherName, setTeacherName] = useState("Teacher");
+  const [schoolName, setSchoolName] = useState("Delhi Public School");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
+
+  // Fetch teacher name
+  useEffect(() => {
+    const storedName = localStorage.getItem("teacher_name");
+    const storedSchool = localStorage.getItem("teacher_school");
+    if (storedName) setTeacherName(storedName);
+    if (storedSchool) setSchoolName(storedSchool);
+
+    // Also check today's attendance
+    const checkTodayAttendance = async () => {
+      const teacherId = localStorage.getItem("teacher_id");
+      if (!teacherId) return;
+      const today = new Date().toISOString().split("T")[0];
+      const { data } = await supabase
+        .from("attendance")
+        .select("*")
+        .eq("teacher_id", teacherId)
+        .eq("date", today)
+        .maybeSingle();
+
+      if (data?.check_in && !data?.check_out) {
+        setCheckedIn(true);
+        // Parse check_in time to set elapsed
+        const [h, m, s] = data.check_in.split(":").map(Number);
+        const checkIn = new Date();
+        checkIn.setHours(h, m, s || 0, 0);
+        setCheckInTime(checkIn);
+        setElapsed(Math.floor((Date.now() - checkIn.getTime()) / 1000));
+      }
+    };
+    checkTodayAttendance();
+  }, []);
 
   useEffect(() => {
     if (checkedIn) {
@@ -42,13 +78,47 @@ const DashboardScreen = () => {
     };
   }, [checkedIn]);
 
-  const handleToggle = () => {
+  const handleToggle = async () => {
+    const teacherId = localStorage.getItem("teacher_id");
+    if (!teacherId) {
+      toast.error("Teacher not found. Please login again.");
+      return;
+    }
+    const today = new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
     if (!checkedIn) {
+      // Check in
+      const { error } = await supabase.from("attendance").insert({
+        teacher_id: teacherId,
+        date: today,
+        check_in: currentTime,
+        status: "present",
+      });
+      if (error) {
+        console.error("Check-in error:", error);
+        toast.error("Check-in failed");
+        return;
+      }
       setCheckedIn(true);
-      setCheckInTime(new Date());
+      setCheckInTime(now);
       setElapsed(0);
+      toast.success("Checked in successfully!");
     } else {
+      // Check out
+      const { error } = await supabase
+        .from("attendance")
+        .update({ check_out: currentTime })
+        .eq("teacher_id", teacherId)
+        .eq("date", today);
+      if (error) {
+        console.error("Check-out error:", error);
+        toast.error("Check-out failed");
+        return;
+      }
       setCheckedIn(false);
+      toast.success("Checked out successfully!");
     }
   };
 
@@ -63,8 +133,8 @@ const DashboardScreen = () => {
         <div className="flex items-start justify-between mb-6">
           <div>
             <p className="text-primary-foreground/70 text-sm font-medium">{greeting},</p>
-            <h1 className="text-primary-foreground text-xl font-bold">Priya Sharma</h1>
-            <p className="text-primary-foreground/60 text-xs mt-0.5">Delhi Public School</p>
+            <h1 className="text-primary-foreground text-xl font-bold">{teacherName}</h1>
+            <p className="text-primary-foreground/60 text-xs mt-0.5">{schoolName}</p>
           </div>
           <button onClick={() => navigate("/notifications")} className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center relative">
             <Bell className="w-5 h-5 text-primary-foreground" />
