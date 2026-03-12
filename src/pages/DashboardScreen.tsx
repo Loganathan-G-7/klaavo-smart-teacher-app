@@ -21,26 +21,37 @@ const navItems = [
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+type AttendanceStatus = "absent" | "checked_in" | "checked_out" | "late";
+
 const DashboardScreen = () => {
   const [checkedIn, setCheckedIn] = useState(false);
+  const [checkedOut, setCheckedOut] = useState(false);
   const [checkInTime, setCheckInTime] = useState<Date | null>(null);
+  const [totalDuration, setTotalDuration] = useState("");
+  const [isLate, setIsLate] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [teacherName, setTeacherName] = useState("Teacher");
   const [schoolName, setSchoolName] = useState("Delhi Public School");
+  const [checkingIn, setCheckingIn] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
 
-  // Fetch teacher name
+  const getAttendanceStatus = (): AttendanceStatus => {
+    if (checkedOut) return "checked_out";
+    if (checkedIn && isLate) return "late";
+    if (checkedIn) return "checked_in";
+    return "absent";
+  };
+
   useEffect(() => {
     const storedName = localStorage.getItem("teacher_name");
     const storedSchool = localStorage.getItem("teacher_school");
     if (storedName) setTeacherName(storedName);
     if (storedSchool) setSchoolName(storedSchool);
 
-    // Also check today's attendance
     const checkTodayAttendance = async () => {
       const teacherId = localStorage.getItem("teacher_id");
       if (!teacherId) return;
@@ -52,21 +63,35 @@ const DashboardScreen = () => {
         .eq("date", today)
         .maybeSingle();
 
-      if (data?.check_in && !data?.check_out) {
-        setCheckedIn(true);
-        // Parse check_in time to set elapsed
+      if (data?.check_in) {
         const [h, m, s] = data.check_in.split(":").map(Number);
-        const checkIn = new Date();
-        checkIn.setHours(h, m, s || 0, 0);
-        setCheckInTime(checkIn);
-        setElapsed(Math.floor((Date.now() - checkIn.getTime()) / 1000));
+        const ci = new Date();
+        ci.setHours(h, m, s || 0, 0);
+        setCheckInTime(ci);
+        setIsLate(h >= 8);
+
+        if (data.check_out) {
+          setCheckedOut(true);
+          setCheckedIn(false);
+          const [oh, om, os] = data.check_out.split(":").map(Number);
+          const co = new Date();
+          co.setHours(oh, om, os || 0, 0);
+          const diffMs = co.getTime() - ci.getTime();
+          const totalH = Math.floor(diffMs / 3600000);
+          const totalM = Math.floor((diffMs % 3600000) / 60000);
+          setTotalDuration(`${totalH}h ${pad(totalM)}m`);
+        } else {
+          setCheckedIn(true);
+          setCheckedOut(false);
+          setElapsed(Math.floor((Date.now() - ci.getTime()) / 1000));
+        }
       }
     };
     checkTodayAttendance();
   }, []);
 
   useEffect(() => {
-    if (checkedIn) {
+    if (checkedIn && !checkedOut) {
       intervalRef.current = setInterval(() => {
         setElapsed((prev) => prev + 1);
       }, 1000);
@@ -76,7 +101,20 @@ const DashboardScreen = () => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [checkedIn]);
+  }, [checkedIn, checkedOut]);
+
+  const requestLocation = (): Promise<GeolocationPosition> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Geolocation not supported"));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+      });
+    });
+  };
 
   const handleToggle = async () => {
     const teacherId = localStorage.getItem("teacher_id");
@@ -88,24 +126,42 @@ const DashboardScreen = () => {
     const now = new Date();
     const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
-    if (!checkedIn) {
-      // Check in
-      const { error } = await supabase.from("attendance").insert({
-        teacher_id: teacherId,
-        date: today,
-        check_in: currentTime,
-        status: "present",
-      });
-      if (error) {
-        console.error("Check-in error:", error);
-        toast.error("Check-in failed");
-        return;
+    if (!checkedIn && !checkedOut) {
+      // Check in - request location first
+      setCheckingIn(true);
+      try {
+        const position = await requestLocation();
+        const { latitude, longitude } = position.coords;
+
+        const { error } = await supabase.from("attendance").insert({
+          teacher_id: teacherId,
+          date: today,
+          check_in: currentTime,
+          status: "present",
+          latitude,
+          longitude,
+        } as any);
+        if (error) {
+          console.error("Check-in error:", error);
+          toast.error("Check-in failed");
+          setCheckingIn(false);
+          return;
+        }
+        setCheckedIn(true);
+        setCheckInTime(now);
+        setIsLate(now.getHours() >= 8);
+        setElapsed(0);
+        toast.success("Checked in successfully!");
+      } catch (err: any) {
+        if (err.code === 1) {
+          toast.error("Please enable location to check in");
+        } else {
+          toast.error("Could not get location. Please try again.");
+        }
+      } finally {
+        setCheckingIn(false);
       }
-      setCheckedIn(true);
-      setCheckInTime(now);
-      setElapsed(0);
-      toast.success("Checked in successfully!");
-    } else {
+    } else if (checkedIn) {
       // Check out
       const { error } = await supabase
         .from("attendance")
@@ -118,6 +174,13 @@ const DashboardScreen = () => {
         return;
       }
       setCheckedIn(false);
+      setCheckedOut(true);
+      if (checkInTime) {
+        const diffMs = Date.now() - checkInTime.getTime();
+        const totalH = Math.floor(diffMs / 3600000);
+        const totalM = Math.floor((diffMs % 3600000) / 60000);
+        setTotalDuration(`${totalH}h ${pad(totalM)}m`);
+      }
       toast.success("Checked out successfully!");
     }
   };
@@ -125,6 +188,17 @@ const DashboardScreen = () => {
   const hh = pad(Math.floor(elapsed / 3600));
   const mm = pad(Math.floor((elapsed % 3600) / 60));
   const ss = pad(elapsed % 60);
+
+  const status = getAttendanceStatus();
+
+  const statusConfig = {
+    absent: { icon: "bg-destructive/15", iconColor: "text-destructive", text: "Absent", textColor: "text-destructive" },
+    checked_in: { icon: "bg-success/15", iconColor: "text-success", text: checkInTime ? `Checked In at ${checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}` : "Checked In", textColor: "text-success" },
+    checked_out: { icon: "bg-success/15", iconColor: "text-success", text: `Present for ${totalDuration}`, textColor: "text-success" },
+    late: { icon: "bg-amber-500/15", iconColor: "text-amber-500", text: checkInTime ? `Checked In at ${checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })} (Late)` : "Late", textColor: "text-amber-500" },
+  };
+
+  const sc = statusConfig[status];
 
   return (
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
@@ -160,8 +234,8 @@ const DashboardScreen = () => {
             </div>
             {checkedIn ? (
               <p className="text-xs font-semibold mt-2 text-success">In</p>
-            ) : checkInTime ? (
-              <p className="text-xs font-semibold mt-2 text-destructive">Out</p>
+            ) : checkedOut ? (
+              <p className="text-xs font-semibold mt-2 text-muted-foreground">Completed</p>
             ) : (
               <p className="text-xs font-medium mt-2 text-white/40">Not checked in</p>
             )}
@@ -169,13 +243,16 @@ const DashboardScreen = () => {
 
           <button
             onClick={handleToggle}
-            className={`px-5 py-3 rounded-full font-bold text-sm shadow-card-lg transition-all active:scale-95 ${
+            disabled={checkedOut || checkingIn}
+            className={`px-5 py-3 rounded-full font-bold text-sm shadow-card-lg transition-all active:scale-95 disabled:opacity-60 ${
               checkedIn
                 ? "bg-destructive text-destructive-foreground"
+                : checkedOut
+                ? "bg-muted text-muted-foreground"
                 : "bg-success text-success-foreground"
             }`}
           >
-            {checkedIn ? "Check-out" : "Check-in"}
+            {checkingIn ? "Locating..." : checkedIn ? "Check-out" : checkedOut ? "Done" : "Check-in"}
           </button>
         </div>
       </div>
@@ -184,16 +261,12 @@ const DashboardScreen = () => {
       <div className="flex-1 px-6 pt-6 pb-24 space-y-6">
         {/* Status Card */}
         <div className="bg-card rounded-xl p-4 shadow-card flex items-center gap-4">
-          <div className="w-10 h-10 rounded-full bg-success/15 flex items-center justify-center">
-            <Clock className="w-5 h-5 text-success" />
+          <div className={`w-10 h-10 rounded-full ${sc.icon} flex items-center justify-center`}>
+            <Clock className={`w-5 h-5 ${sc.iconColor}`} />
           </div>
           <div>
             <p className="text-xs text-muted-foreground font-medium">Today's Status</p>
-            <p className="text-sm font-bold text-foreground">
-              {checkedIn && checkInTime
-                ? `Checked In at ${checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}`
-                : "Not Checked In"}
-            </p>
+            <p className={`text-sm font-bold ${sc.textColor}`}>{sc.text}</p>
           </div>
         </div>
 
