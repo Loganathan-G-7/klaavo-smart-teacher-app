@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, MapPin, CheckCircle2, Shield } from "lucide-react";
+import { ArrowLeft, MapPin, CheckCircle2, Shield, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -26,7 +26,6 @@ const CheckInScreen = () => {
   const time = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
   const isLate = checkInTime ? checkInTime.getHours() >= 8 : false;
 
-  // Check if already checked in today
   useEffect(() => {
     const checkExisting = async () => {
       const teacherId = localStorage.getItem("teacher_id");
@@ -62,6 +61,19 @@ const CheckInScreen = () => {
     };
   }, [done]);
 
+  const requestLocation = (): Promise<GeolocationPosition> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Geolocation not supported"));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+      });
+    });
+  };
+
   const handleCheckIn = async () => {
     const teacherId = localStorage.getItem("teacher_id");
     if (!teacherId) {
@@ -70,30 +82,44 @@ const CheckInScreen = () => {
     }
 
     setChecking(true);
-    const today = new Date().toISOString().split("T")[0];
-    const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
-    const { error } = await supabase.from("attendance").insert({
-      teacher_id: teacherId,
-      date: today,
-      check_in: currentTime,
-      status: "present",
-    });
+    try {
+      const position = await requestLocation();
+      const { latitude, longitude } = position.coords;
 
-    if (error) {
-      console.error("Check-in error:", error);
-      toast.error("Check-in failed. You may have already checked in today.");
-      setChecking(false);
-      return;
-    }
+      const checkNow = new Date();
+      const today = checkNow.toISOString().split("T")[0];
+      const currentTime = `${pad(checkNow.getHours())}:${pad(checkNow.getMinutes())}:${pad(checkNow.getSeconds())}`;
 
-    setTimeout(() => {
+      const { error } = await supabase.from("attendance").insert({
+        teacher_id: teacherId,
+        date: today,
+        check_in: currentTime,
+        status: "present",
+        latitude,
+        longitude,
+      } as any);
+
+      if (error) {
+        console.error("Check-in error:", error);
+        toast.error("Check-in failed. You may have already checked in today.");
+        setChecking(false);
+        return;
+      }
+
       setChecking(false);
       setDone(true);
-      setCheckInTime(new Date());
+      setCheckInTime(checkNow);
       setElapsed(0);
       toast.success("Checked in successfully!");
-    }, 1000);
+    } catch (err: any) {
+      setChecking(false);
+      if (err.code === 1) {
+        toast.error("Please enable location to check in");
+      } else {
+        toast.error("Could not get location. Please try again.");
+      }
+    }
   };
 
   return (
@@ -149,7 +175,7 @@ const CheckInScreen = () => {
             disabled={checking}
             className="w-full py-4 rounded-xl bg-success text-success-foreground font-bold text-base shadow-card-lg transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-70"
           >
-            {checking ? <span className="animate-pulse-gentle">Verifying Location...</span> : "Check In"}
+            {checking ? <span className="animate-pulse-gentle">Fetching Location...</span> : "Check In"}
           </button>
         )}
 
