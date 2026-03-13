@@ -1,23 +1,50 @@
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Users, Check, X } from "lucide-react";
+import { ArrowLeft, Users, Check, X, BookOpen } from "lucide-react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
-const classesData = [
-  { id: 1, name: "LKG-A", section: "A", students: 32, attendanceDone: true },
-  { id: 2, name: "LKG-B", section: "B", students: 30, attendanceDone: false },
-  { id: 3, name: "Class 1-A", section: "A", students: 35, attendanceDone: true },
-  { id: 4, name: "Class 2-B", section: "B", students: 28, attendanceDone: false },
-  { id: 5, name: "Class 3-A", section: "A", students: 34, attendanceDone: true },
-  { id: 6, name: "Class 5-B", section: "B", students: 31, attendanceDone: false },
-];
+interface ClassData {
+  id: string;
+  name: string;
+  section: string;
+  students_count: number;
+}
 
 const MyClassesScreen = () => {
   const navigate = useNavigate();
+  const [classes, setClasses] = useState<ClassData[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const today = new Date().toLocaleDateString("en-IN", {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
   });
+
+  useEffect(() => {
+    const fetchClasses = async () => {
+      const teacherId = localStorage.getItem("teacher_id");
+      if (!teacherId) {
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("teacher_classes")
+        .select("class_id, classes:class_id(id, name, section, students_count)")
+        .eq("teacher_id", teacherId);
+
+      if (!error && data) {
+        const mapped = data
+          .map((row: any) => row.classes)
+          .filter(Boolean) as ClassData[];
+        setClasses(mapped);
+      }
+      setLoading(false);
+    };
+    fetchClasses();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
@@ -35,46 +62,47 @@ const MyClassesScreen = () => {
         <p className="text-primary-foreground/60 text-xs ml-12">{today}</p>
       </div>
 
-      {/* Grid */}
+      {/* Content */}
       <div className="flex-1 px-5 pt-6 pb-8">
-        <div className="grid grid-cols-2 gap-4">
-          {classesData.map((cls) => (
-            <button
-              key={cls.id}
-              onClick={() => navigate(`/class/${cls.id}`, { state: { className: cls.name } })}
-              className="bg-card rounded-2xl p-4 shadow-card text-left transition-all active:scale-[0.97] hover:shadow-card-lg"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <span className="text-sm font-bold text-primary">
-                    {cls.name.split("-")[0].trim().slice(0, 3)}
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : classes.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+              <BookOpen className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <h3 className="font-bold text-foreground mb-1">No classes assigned</h3>
+            <p className="text-muted-foreground text-sm">Contact your admin to get classes assigned.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            {classes.map((cls) => (
+              <button
+                key={cls.id}
+                onClick={() => navigate(`/class/${cls.id}`, { state: { className: cls.name } })}
+                className="bg-card rounded-2xl p-4 shadow-card text-left transition-all active:scale-[0.97] hover:shadow-card-lg"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <span className="text-sm font-bold text-primary">
+                      {cls.name.split("-")[0].trim().slice(0, 3)}
+                    </span>
+                  </div>
+                </div>
+                <h3 className="font-bold text-foreground text-sm mb-0.5">{cls.name}</h3>
+                <p className="text-muted-foreground text-xs mb-2">Section {cls.section}</p>
+                <div className="flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {cls.students_count} students
                   </span>
                 </div>
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                    cls.attendanceDone
-                      ? "bg-success/15"
-                      : "bg-destructive/15"
-                  }`}
-                >
-                  {cls.attendanceDone ? (
-                    <Check className="w-4 h-4 text-success" />
-                  ) : (
-                    <X className="w-4 h-4 text-destructive" />
-                  )}
-                </div>
-              </div>
-              <h3 className="font-bold text-foreground text-sm mb-0.5">{cls.name}</h3>
-              <p className="text-muted-foreground text-xs mb-2">Section {cls.section}</p>
-              <div className="flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">
-                  {cls.students} students
-                </span>
-              </div>
-            </button>
-          ))}
-        </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
