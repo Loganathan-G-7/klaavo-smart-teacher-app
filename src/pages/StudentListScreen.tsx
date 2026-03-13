@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { ArrowLeft, Search } from "lucide-react";
+import { ArrowLeft, Search, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const studentsData = [
   { id: 1, name: "Aarav Sharma", roll: "01", feesPending: true },
@@ -29,6 +30,37 @@ const StudentListScreen = () => {
 
   const [search, setSearch] = useState("");
   const [attendance, setAttendance] = useState<Record<number, AttendanceStatus>>({});
+  const [saving, setSaving] = useState(false);
+
+  const today = new Date();
+  const todayStr = today.toISOString().split("T")[0];
+  const todayFormatted = today.toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  // Load previously saved attendance on mount
+  useEffect(() => {
+    const loadAttendance = async () => {
+      if (!classId) return;
+      const { data } = await supabase
+        .from("student_attendance")
+        .select("student_id, status")
+        .eq("class_id", classId)
+        .eq("date", todayStr);
+
+      if (data && data.length > 0) {
+        const loaded: Record<number, AttendanceStatus> = {};
+        data.forEach((row) => {
+          loaded[row.student_id] = row.status as AttendanceStatus;
+        });
+        setAttendance(loaded);
+      }
+    };
+    loadAttendance();
+  }, [classId, todayStr]);
 
   const filtered = studentsData.filter((s) =>
     s.name.toLowerCase().includes(search.toLowerCase())
@@ -37,18 +69,50 @@ const StudentListScreen = () => {
   const getInitials = (name: string) =>
     name.split(" ").map((w) => w[0]).join("").slice(0, 2);
 
-  const handleSave = () => {
-    toast({
-      title: "Attendance Saved",
-      description: `Attendance for ${className} has been saved successfully.`,
-    });
+  const handleSave = async () => {
+    const teacherId = localStorage.getItem("teacher_id");
+    if (!teacherId || !classId) return;
+
+    const entries = Object.entries(attendance).filter(([, status]) => status !== null);
+    if (entries.length === 0) {
+      toast({ title: "No attendance marked", description: "Please mark at least one student.", variant: "destructive" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const rows = entries.map(([studentId, status]) => ({
+        student_id: Number(studentId),
+        class_id: classId,
+        date: todayStr,
+        status: status as string,
+        marked_by: teacherId,
+      }));
+
+      // Upsert based on unique constraint (student_id, class_id, date)
+      const { error } = await supabase
+        .from("student_attendance")
+        .upsert(rows, { onConflict: "student_id,class_id,date" });
+
+      if (error) throw error;
+
+      toast({
+        title: "Attendance Saved",
+        description: `Attendance for ${className} has been saved successfully.`,
+      });
+      navigate(-1);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
       {/* Header */}
       <div className="bg-primary px-6 pt-8 pb-5 rounded-b-[2rem]">
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-2">
           <button
             onClick={() => navigate(-1)}
             className="w-9 h-9 rounded-full bg-primary-foreground/10 flex items-center justify-center"
@@ -59,6 +123,12 @@ const StudentListScreen = () => {
             <h1 className="text-primary-foreground text-lg font-bold">{className}</h1>
             <p className="text-primary-foreground/60 text-xs">{studentsData.length} students</p>
           </div>
+        </div>
+
+        {/* Today's Date */}
+        <div className="flex items-center gap-2 mb-4 ml-1">
+          <Calendar className="w-3.5 h-3.5 text-primary-foreground/60" />
+          <p className="text-primary-foreground/70 text-xs font-medium">{todayFormatted}</p>
         </div>
 
         {/* Search */}
@@ -131,10 +201,10 @@ const StudentListScreen = () => {
                   className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
                     attendance[student.id] === status
                       ? status === "P"
-                        ? "bg-success text-success-foreground"
+                        ? "bg-green-500 text-white"
                         : status === "A"
-                        ? "bg-destructive text-destructive-foreground"
-                        : "bg-amber-500 text-white"
+                        ? "bg-red-500 text-white"
+                        : "bg-yellow-500 text-white"
                       : "bg-secondary text-muted-foreground"
                   }`}
                 >
@@ -150,9 +220,10 @@ const StudentListScreen = () => {
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md px-5 pb-6 pt-3 bg-gradient-to-t from-background via-background to-transparent">
         <button
           onClick={handleSave}
-          className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-bold text-base shadow-card-lg transition-all hover:opacity-90 active:scale-[0.98]"
+          disabled={saving}
+          className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-bold text-base shadow-card-lg transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60"
         >
-          Save Attendance
+          {saving ? "Saving..." : "Save Attendance"}
         </button>
       </div>
     </div>
