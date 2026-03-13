@@ -3,6 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { Bell, Home, BookOpen, CalendarOff, MessageCircle, User, Clock, NotebookPen, FileText, Image, MapPinOff, CalendarDays, ClipboardList, ShieldCheck, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const classes = [
   { name: "LKG-A", subject: "English", time: "9:30 AM", color: "bg-accent/20 text-accent" },
@@ -21,18 +31,21 @@ const navItems = [
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-type AttendanceStatus = "absent" | "checked_in" | "checked_out" | "late";
+type AttendanceStatus = "absent" | "early" | "on_time" | "late" | "checked_out";
 
 const DashboardScreen = () => {
   const [checkedIn, setCheckedIn] = useState(false);
   const [checkedOut, setCheckedOut] = useState(false);
   const [checkInTime, setCheckInTime] = useState<Date | null>(null);
   const [totalDuration, setTotalDuration] = useState("");
-  const [isLate, setIsLate] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [teacherName, setTeacherName] = useState("Teacher");
   const [schoolName, setSchoolName] = useState("Delhi Public School");
   const [checkingIn, setCheckingIn] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
+  const [checkoutTime, setCheckoutTime] = useState<string>("");
+  const [attendanceId, setAttendanceId] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
 
@@ -41,9 +54,13 @@ const DashboardScreen = () => {
 
   const getAttendanceStatus = (): AttendanceStatus => {
     if (checkedOut) return "checked_out";
-    if (checkedIn && isLate) return "late";
-    if (checkedIn) return "checked_in";
-    return "absent";
+    if (!checkedIn || !checkInTime) return "absent";
+    const h = checkInTime.getHours();
+    const m = checkInTime.getMinutes();
+    const totalMin = h * 60 + m;
+    if (totalMin < 510) return "early"; // before 8:30
+    if (totalMin <= 540) return "on_time"; // 8:30 - 9:00
+    return "late"; // after 9:00
   };
 
   useEffect(() => {
@@ -61,14 +78,16 @@ const DashboardScreen = () => {
         .select("*")
         .eq("teacher_id", teacherId)
         .eq("date", today)
+        .order("created_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (data?.check_in) {
+        setAttendanceId(data.id);
         const [h, m, s] = data.check_in.split(":").map(Number);
         const ci = new Date();
         ci.setHours(h, m, s || 0, 0);
         setCheckInTime(ci);
-        setIsLate(h >= 8);
 
         if (data.check_out) {
           setCheckedOut(true);
@@ -116,7 +135,7 @@ const DashboardScreen = () => {
     });
   };
 
-  const handleToggle = async () => {
+  const handleCheckIn = async () => {
     const teacherId = localStorage.getItem("teacher_id");
     if (!teacherId) {
       toast.error("Teacher not found. Please login again.");
@@ -126,53 +145,72 @@ const DashboardScreen = () => {
     const now = new Date();
     const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
-    if (!checkedIn && !checkedOut) {
-      // Check in - request location first
-      setCheckingIn(true);
-      try {
-        const position = await requestLocation();
-        const { latitude, longitude } = position.coords;
+    setCheckingIn(true);
+    try {
+      const position = await requestLocation();
+      const { latitude, longitude } = position.coords;
 
-        const { error } = await supabase.from("attendance").insert({
-          teacher_id: teacherId,
-          date: today,
-          check_in: currentTime,
-          status: "present",
-          latitude,
-          longitude,
-        } as any);
-        if (error) {
-          console.error("Check-in error:", error);
-          toast.error("Check-in failed");
-          setCheckingIn(false);
-          return;
-        }
-        setCheckedIn(true);
-        setCheckInTime(now);
-        setIsLate(now.getHours() >= 8);
-        setElapsed(0);
-        toast.success("Checked in successfully!");
-      } catch (err: any) {
-        if (err.code === 1) {
-          toast.error("Please enable location to check in");
-        } else {
-          toast.error("Could not get location. Please try again.");
-        }
-      } finally {
-        setCheckingIn(false);
-      }
-    } else if (checkedIn) {
-      // Check out
-      const { error } = await supabase
-        .from("attendance")
-        .update({ check_out: currentTime })
-        .eq("teacher_id", teacherId)
-        .eq("date", today);
+      const { data, error } = await supabase.from("attendance").insert({
+        teacher_id: teacherId,
+        date: today,
+        check_in: currentTime,
+        status: "present",
+        latitude,
+        longitude,
+      } as any).select().single();
+
       if (error) {
-        console.error("Check-out error:", error);
-        toast.error("Check-out failed");
+        console.error("Check-in error:", error);
+        toast.error("Check-in failed");
         return;
       }
+      setAttendanceId(data?.id || null);
+      setCheckedIn(true);
+      setCheckedOut(false);
+      setCheckInTime(now);
+      setElapsed(0);
+      toast.success("Checked in successfully!");
+    } catch (err: any) {
+      if (err.code === 1) {
+        toast.error("Please enable location to check in");
+      } else {
+        toast.error("Could not get location. Please try again.");
+      }
+    } finally {
+      setCheckingIn(false);
+    }
+  };
+
+  const handleCheckOutRequest = () => {
+    const now = new Date();
+    setCheckoutTime(now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true }));
+    setShowCheckoutDialog(true);
+  };
+
+  const handleCheckOutConfirm = async () => {
+    setShowCheckoutDialog(false);
+    const teacherId = localStorage.getItem("teacher_id");
+    if (!teacherId) return;
+
+    setCheckingOut(true);
+    try {
+      const position = await requestLocation();
+      const { latitude, longitude } = position.coords;
+
+      const now = new Date();
+      const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      const today = now.toISOString().split("T")[0];
+
+      const updateQuery = supabase
+        .from("attendance")
+        .update({ check_out: currentTime, longitude, latitude } as any);
+
+      if (attendanceId) {
+        await updateQuery.eq("id", attendanceId);
+      } else {
+        await updateQuery.eq("teacher_id", teacherId).eq("date", today);
+      }
+
       setCheckedIn(false);
       setCheckedOut(true);
       if (checkInTime) {
@@ -182,7 +220,24 @@ const DashboardScreen = () => {
         setTotalDuration(`${totalH}h ${pad(totalM)}m`);
       }
       toast.success("Checked out successfully!");
+    } catch (err: any) {
+      if (err.code === 1) {
+        toast.error("Please enable location to check out");
+      } else {
+        toast.error("Could not get location. Please try again.");
+      }
+    } finally {
+      setCheckingOut(false);
     }
+  };
+
+  const handleCheckInAgain = () => {
+    setCheckedOut(false);
+    setCheckedIn(false);
+    setCheckInTime(null);
+    setElapsed(0);
+    setAttendanceId(null);
+    setTotalDuration("");
   };
 
   const hh = pad(Math.floor(elapsed / 3600));
@@ -191,14 +246,54 @@ const DashboardScreen = () => {
 
   const status = getAttendanceStatus();
 
-  const statusConfig = {
+  const statusConfig: Record<AttendanceStatus, { icon: string; iconColor: string; text: string; textColor: string }> = {
     absent: { icon: "bg-destructive/15", iconColor: "text-destructive", text: "Absent", textColor: "text-destructive" },
-    checked_in: { icon: "bg-success/15", iconColor: "text-success", text: checkInTime ? `Checked In at ${checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}` : "Checked In", textColor: "text-success" },
+    early: {
+      icon: "bg-blue-500/15",
+      iconColor: "text-blue-500",
+      text: checkInTime ? `Checked In at ${checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })} (Early)` : "Early",
+      textColor: "text-blue-500",
+    },
+    on_time: {
+      icon: "bg-success/15",
+      iconColor: "text-success",
+      text: checkInTime ? `Checked In at ${checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}` : "On Time",
+      textColor: "text-success",
+    },
     checked_out: { icon: "bg-success/15", iconColor: "text-success", text: `Present for ${totalDuration}`, textColor: "text-success" },
-    late: { icon: "bg-amber-500/15", iconColor: "text-amber-500", text: checkInTime ? `Checked In at ${checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })} (Late)` : "Late", textColor: "text-amber-500" },
+    late: {
+      icon: "bg-amber-500/15",
+      iconColor: "text-amber-500",
+      text: checkInTime ? `Checked In at ${checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })} (Late)` : "Late",
+      textColor: "text-amber-500",
+    },
   };
 
   const sc = statusConfig[status];
+
+  const getButtonLabel = () => {
+    if (checkingIn) return "Locating...";
+    if (checkingOut) return "Locating...";
+    if (checkedIn) return "Check-out";
+    if (checkedOut) return "Check In Again?";
+    return "Check-in";
+  };
+
+  const getButtonStyle = () => {
+    if (checkedIn) return "bg-destructive text-destructive-foreground";
+    if (checkedOut) return "bg-accent text-accent-foreground";
+    return "bg-success text-success-foreground";
+  };
+
+  const handleButtonClick = () => {
+    if (checkedIn) {
+      handleCheckOutRequest();
+    } else if (checkedOut) {
+      handleCheckInAgain();
+    } else {
+      handleCheckIn();
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
@@ -242,17 +337,11 @@ const DashboardScreen = () => {
           </div>
 
           <button
-            onClick={handleToggle}
-            disabled={checkedOut || checkingIn}
-            className={`px-5 py-3 rounded-full font-bold text-sm shadow-card-lg transition-all active:scale-95 disabled:opacity-60 ${
-              checkedIn
-                ? "bg-destructive text-destructive-foreground"
-                : checkedOut
-                ? "bg-muted text-muted-foreground"
-                : "bg-success text-success-foreground"
-            }`}
+            onClick={handleButtonClick}
+            disabled={checkingIn || checkingOut}
+            className={`px-5 py-3 rounded-full font-bold text-sm shadow-card-lg transition-all active:scale-95 disabled:opacity-60 ${getButtonStyle()}`}
           >
-            {checkingIn ? "Locating..." : checkedIn ? "Check-out" : checkedOut ? "Done" : "Check-in"}
+            {getButtonLabel()}
           </button>
         </div>
       </div>
@@ -325,6 +414,25 @@ const DashboardScreen = () => {
           </button>
         ))}
       </div>
+
+      {/* Check-out Confirmation Dialog */}
+      <AlertDialog open={showCheckoutDialog} onOpenChange={setShowCheckoutDialog}>
+        <AlertDialogContent className="max-w-sm mx-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Check-out</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span className="block">Are you sure you want to check out?</span>
+              <span className="block text-foreground font-semibold text-base">Current time: {checkoutTime}</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCheckOutConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Check Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
