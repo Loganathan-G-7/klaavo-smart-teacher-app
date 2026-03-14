@@ -1,0 +1,1 @@
+ALTER TABLE public.attendance DROP CONSTRAINT IF EXISTS attendance_teacher_id_date_key;
