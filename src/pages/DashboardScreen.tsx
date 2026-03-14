@@ -31,14 +31,39 @@ const navItems = [
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-type AttendanceStatus = "absent" | "early" | "on_time" | "late" | "checked_out";
+type AttendanceStatus = "absent" | "in_progress" | "present";
+
+interface AttendanceRow {
+  id: string;
+  check_in: string | null;
+  check_out: string | null;
+}
+
+const parseTime = (timeStr: string): Date => {
+  const [h, m, s] = timeStr.split(":").map(Number);
+  const d = new Date();
+  d.setHours(h, m, s || 0, 0);
+  return d;
+};
+
+const calcCompletedSeconds = (rows: AttendanceRow[]): number => {
+  let total = 0;
+  for (const row of rows) {
+    if (row.check_in && row.check_out) {
+      const ci = parseTime(row.check_in);
+      const co = parseTime(row.check_out);
+      total += Math.max(0, Math.floor((co.getTime() - ci.getTime()) / 1000));
+    }
+  }
+  return total;
+};
 
 const DashboardScreen = () => {
   const [checkedIn, setCheckedIn] = useState(false);
   const [checkedOut, setCheckedOut] = useState(false);
-  const [checkInTime, setCheckInTime] = useState<Date | null>(null);
-  const [totalDuration, setTotalDuration] = useState("");
-  const [elapsed, setElapsed] = useState(0);
+  const [currentSessionStart, setCurrentSessionStart] = useState<Date | null>(null);
+  const [completedSeconds, setCompletedSeconds] = useState(0);
+  const [currentSessionElapsed, setCurrentSessionElapsed] = useState(0);
   const [teacherName, setTeacherName] = useState("Teacher");
   const [schoolName, setSchoolName] = useState("Delhi Public School");
   const [checkingIn, setCheckingIn] = useState(false);
@@ -52,15 +77,13 @@ const DashboardScreen = () => {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
 
+  const totalElapsed = completedSeconds + currentSessionElapsed;
+
   const getAttendanceStatus = (): AttendanceStatus => {
-    if (checkedOut) return "checked_out";
-    if (!checkedIn || !checkInTime) return "absent";
-    const h = checkInTime.getHours();
-    const m = checkInTime.getMinutes();
-    const totalMin = h * 60 + m;
-    if (totalMin < 510) return "early"; // before 8:30
-    if (totalMin <= 540) return "on_time"; // 8:30 - 9:00
-    return "late"; // after 9:00
+    if (totalElapsed >= 28800) return "present"; // 8 hours
+    if (checkedIn) return "in_progress";
+    if (completedSeconds > 0 || checkedOut) return "absent"; // checked out but < 8h
+    return "absent";
   };
 
   useEffect(() => {
@@ -69,7 +92,7 @@ const DashboardScreen = () => {
     if (storedName) setTeacherName(storedName);
     if (storedSchool) setSchoolName(storedSchool);
 
-    const checkTodayAttendance = async () => {
+    const loadTodayAttendance = async () => {
       const teacherId = localStorage.getItem("teacher_id");
       if (!teacherId) return;
       const today = new Date().toISOString().split("T")[0];
@@ -78,41 +101,36 @@ const DashboardScreen = () => {
         .select("*")
         .eq("teacher_id", teacherId)
         .eq("date", today)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order("created_at", { ascending: true });
 
-      if (data?.check_in) {
-        setAttendanceId(data.id);
-        const [h, m, s] = data.check_in.split(":").map(Number);
-        const ci = new Date();
-        ci.setHours(h, m, s || 0, 0);
-        setCheckInTime(ci);
+      if (!data || data.length === 0) return;
 
-        if (data.check_out) {
-          setCheckedOut(true);
-          setCheckedIn(false);
-          const [oh, om, os] = data.check_out.split(":").map(Number);
-          const co = new Date();
-          co.setHours(oh, om, os || 0, 0);
-          const diffMs = co.getTime() - ci.getTime();
-          const totalH = Math.floor(diffMs / 3600000);
-          const totalM = Math.floor((diffMs % 3600000) / 60000);
-          setTotalDuration(`${totalH}h ${pad(totalM)}m`);
-        } else {
-          setCheckedIn(true);
-          setCheckedOut(false);
-          setElapsed(Math.floor((Date.now() - ci.getTime()) / 1000));
-        }
+      const rows = data as AttendanceRow[];
+      const completed = calcCompletedSeconds(rows);
+      setCompletedSeconds(completed);
+
+      // Check if there's an open session (check_in but no check_out)
+      const openSession = rows.find((r) => r.check_in && !r.check_out);
+      if (openSession) {
+        setAttendanceId(openSession.id);
+        const ci = parseTime(openSession.check_in!);
+        setCurrentSessionStart(ci);
+        setCurrentSessionElapsed(Math.floor((Date.now() - ci.getTime()) / 1000));
+        setCheckedIn(true);
+        setCheckedOut(false);
+      } else {
+        // All sessions closed
+        setCheckedIn(false);
+        setCheckedOut(rows.length > 0);
       }
     };
-    checkTodayAttendance();
+    loadTodayAttendance();
   }, []);
 
   useEffect(() => {
     if (checkedIn && !checkedOut) {
       intervalRef.current = setInterval(() => {
-        setElapsed((prev) => prev + 1);
+        setCurrentSessionElapsed((prev) => prev + 1);
       }, 1000);
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -167,8 +185,8 @@ const DashboardScreen = () => {
       setAttendanceId(data?.id || null);
       setCheckedIn(true);
       setCheckedOut(false);
-      setCheckInTime(now);
-      setElapsed(0);
+      setCurrentSessionStart(now);
+      setCurrentSessionElapsed(0);
       toast.success("Checked in successfully!");
     } catch (err: any) {
       if (err.code === 1) {
@@ -199,26 +217,22 @@ const DashboardScreen = () => {
 
       const now = new Date();
       const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-      const today = now.toISOString().split("T")[0];
-
-      const updateQuery = supabase
-        .from("attendance")
-        .update({ check_out: currentTime, longitude, latitude } as any);
 
       if (attendanceId) {
-        await updateQuery.eq("id", attendanceId);
-      } else {
-        await updateQuery.eq("teacher_id", teacherId).eq("date", today);
+        await supabase
+          .from("attendance")
+          .update({ check_out: currentTime, longitude, latitude } as any)
+          .eq("id", attendanceId);
       }
 
+      // Add current session to completed
+      const sessionSecs = currentSessionElapsed;
+      setCompletedSeconds((prev) => prev + sessionSecs);
+      setCurrentSessionElapsed(0);
+      setCurrentSessionStart(null);
       setCheckedIn(false);
       setCheckedOut(true);
-      if (checkInTime) {
-        const diffMs = Date.now() - checkInTime.getTime();
-        const totalH = Math.floor(diffMs / 3600000);
-        const totalM = Math.floor((diffMs % 3600000) / 60000);
-        setTotalDuration(`${totalH}h ${pad(totalM)}m`);
-      }
+      setAttendanceId(null);
       toast.success("Checked out successfully!");
     } catch (err: any) {
       if (err.code === 1) {
@@ -231,65 +245,34 @@ const DashboardScreen = () => {
     }
   };
 
-  const handleCheckInAgain = () => {
-    setCheckedOut(false);
-    setCheckedIn(false);
-    setCheckInTime(null);
-    setElapsed(0);
-    setAttendanceId(null);
-    setTotalDuration("");
-  };
-
-  const hh = pad(Math.floor(elapsed / 3600));
-  const mm = pad(Math.floor((elapsed % 3600) / 60));
-  const ss = pad(elapsed % 60);
+  const hh = pad(Math.floor(totalElapsed / 3600));
+  const mm = pad(Math.floor((totalElapsed % 3600) / 60));
+  const ss = pad(totalElapsed % 60);
 
   const status = getAttendanceStatus();
 
   const statusConfig: Record<AttendanceStatus, { icon: string; iconColor: string; text: string; textColor: string }> = {
     absent: { icon: "bg-destructive/15", iconColor: "text-destructive", text: "Absent", textColor: "text-destructive" },
-    early: {
-      icon: "bg-blue-500/15",
-      iconColor: "text-blue-500",
-      text: checkInTime ? `Checked In at ${checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })} (Early)` : "Early",
-      textColor: "text-blue-500",
-    },
-    on_time: {
-      icon: "bg-success/15",
-      iconColor: "text-success",
-      text: checkInTime ? `Checked In at ${checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}` : "On Time",
-      textColor: "text-success",
-    },
-    checked_out: { icon: "bg-success/15", iconColor: "text-success", text: `Present for ${totalDuration}`, textColor: "text-success" },
-    late: {
-      icon: "bg-amber-500/15",
-      iconColor: "text-amber-500",
-      text: checkInTime ? `Checked In at ${checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })} (Late)` : "Late",
-      textColor: "text-amber-500",
-    },
+    in_progress: { icon: "bg-blue-500/15", iconColor: "text-blue-500", text: "In Progress", textColor: "text-blue-500" },
+    present: { icon: "bg-success/15", iconColor: "text-success", text: "Present", textColor: "text-success" },
   };
 
   const sc = statusConfig[status];
 
   const getButtonLabel = () => {
-    if (checkingIn) return "Locating...";
-    if (checkingOut) return "Locating...";
+    if (checkingIn || checkingOut) return "Locating...";
     if (checkedIn) return "Check-out";
-    if (checkedOut) return "Check In Again?";
     return "Check-in";
   };
 
   const getButtonStyle = () => {
     if (checkedIn) return "bg-destructive text-destructive-foreground";
-    if (checkedOut) return "bg-accent text-accent-foreground";
     return "bg-success text-success-foreground";
   };
 
   const handleButtonClick = () => {
     if (checkedIn) {
       handleCheckOutRequest();
-    } else if (checkedOut) {
-      handleCheckInAgain();
     } else {
       handleCheckIn();
     }
@@ -328,9 +311,9 @@ const DashboardScreen = () => {
               </div>
             </div>
             {checkedIn ? (
-              <p className="text-xs font-semibold mt-2 text-success">In</p>
+              <p className="text-xs font-semibold mt-2 text-success">● Working</p>
             ) : checkedOut ? (
-              <p className="text-xs font-semibold mt-2 text-muted-foreground">Completed</p>
+              <p className="text-xs font-semibold mt-2 text-muted-foreground">Paused</p>
             ) : (
               <p className="text-xs font-medium mt-2 text-white/40">Not checked in</p>
             )}
@@ -356,6 +339,7 @@ const DashboardScreen = () => {
           <div>
             <p className="text-xs text-muted-foreground font-medium">Today's Status</p>
             <p className={`text-sm font-bold ${sc.textColor}`}>{sc.text}</p>
+            <p className="text-[10px] text-muted-foreground">Work hours: 8:30 AM – 5:30 PM</p>
           </div>
         </div>
 
@@ -421,14 +405,13 @@ const DashboardScreen = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Check-out</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
-              <span className="block">Are you sure you want to check out?</span>
-              <span className="block text-foreground font-semibold text-base">Current time: {checkoutTime}</span>
+              <span className="block">Check out at {checkoutTime}?</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>No</AlertDialogCancel>
             <AlertDialogAction onClick={handleCheckOutConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Check Out
+              Yes
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

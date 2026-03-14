@@ -1,9 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, MapPin, CheckCircle2, Shield, AlertTriangle } from "lucide-react";
+import { ArrowLeft, MapPin, CheckCircle2, Shield, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -14,20 +24,59 @@ const formatTimer = (seconds: number) => {
   return `${h}:${m}:${s}`;
 };
 
+interface AttendanceRow {
+  id: string;
+  check_in: string | null;
+  check_out: string | null;
+}
+
+const parseTime = (timeStr: string): Date => {
+  const [h, m, s] = timeStr.split(":").map(Number);
+  const d = new Date();
+  d.setHours(h, m, s || 0, 0);
+  return d;
+};
+
+const calcCompletedSeconds = (rows: AttendanceRow[]): number => {
+  let total = 0;
+  for (const row of rows) {
+    if (row.check_in && row.check_out) {
+      const ci = parseTime(row.check_in);
+      const co = parseTime(row.check_out);
+      total += Math.max(0, Math.floor((co.getTime() - ci.getTime()) / 1000));
+    }
+  }
+  return total;
+};
+
+type Status = "absent" | "in_progress" | "present";
+
 const CheckInScreen = () => {
   const navigate = useNavigate();
   const [checking, setChecking] = useState(false);
-  const [done, setDone] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
+  const [checkedIn, setCheckedIn] = useState(false);
+  const [checkedOut, setCheckedOut] = useState(false);
+  const [completedSeconds, setCompletedSeconds] = useState(0);
+  const [currentSessionElapsed, setCurrentSessionElapsed] = useState(0);
   const [checkInTime, setCheckInTime] = useState<Date | null>(null);
+  const [attendanceId, setAttendanceId] = useState<string | null>(null);
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
+  const [checkoutTime, setCheckoutTime] = useState("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const now = new Date();
   const time = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
-  const isLate = checkInTime ? checkInTime.getHours() >= 8 : false;
+  const totalElapsed = completedSeconds + currentSessionElapsed;
+
+  const getStatus = (): Status => {
+    if (totalElapsed >= 28800) return "present";
+    if (checkedIn) return "in_progress";
+    return "absent";
+  };
 
   useEffect(() => {
-    const checkExisting = async () => {
+    const loadToday = async () => {
       const teacherId = localStorage.getItem("teacher_id");
       if (!teacherId) return;
       const today = new Date().toISOString().split("T")[0];
@@ -36,30 +85,37 @@ const CheckInScreen = () => {
         .select("*")
         .eq("teacher_id", teacherId)
         .eq("date", today)
-        .maybeSingle();
+        .order("created_at", { ascending: true });
 
-      if (data?.check_in && !data?.check_out) {
-        setDone(true);
-        const [h, m, s] = data.check_in.split(":").map(Number);
-        const ci = new Date();
-        ci.setHours(h, m, s || 0, 0);
+      if (!data || data.length === 0) return;
+
+      const rows = data as AttendanceRow[];
+      setCompletedSeconds(calcCompletedSeconds(rows));
+
+      const openSession = rows.find((r) => r.check_in && !r.check_out);
+      if (openSession) {
+        setAttendanceId(openSession.id);
+        const ci = parseTime(openSession.check_in!);
         setCheckInTime(ci);
-        setElapsed(Math.floor((Date.now() - ci.getTime()) / 1000));
+        setCurrentSessionElapsed(Math.floor((Date.now() - ci.getTime()) / 1000));
+        setCheckedIn(true);
+      } else if (rows.length > 0) {
+        setCheckedOut(true);
       }
     };
-    checkExisting();
+    loadToday();
   }, []);
 
   useEffect(() => {
-    if (done) {
+    if (checkedIn) {
       intervalRef.current = setInterval(() => {
-        setElapsed((prev) => prev + 1);
+        setCurrentSessionElapsed((prev) => prev + 1);
       }, 1000);
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [done]);
+  }, [checkedIn]);
 
   const requestLocation = (): Promise<GeolocationPosition> => {
     return new Promise((resolve, reject) => {
@@ -82,7 +138,6 @@ const CheckInScreen = () => {
     }
 
     setChecking(true);
-
     try {
       const position = await requestLocation();
       const { latitude, longitude } = position.coords;
@@ -91,26 +146,28 @@ const CheckInScreen = () => {
       const today = checkNow.toISOString().split("T")[0];
       const currentTime = `${pad(checkNow.getHours())}:${pad(checkNow.getMinutes())}:${pad(checkNow.getSeconds())}`;
 
-      const { error } = await supabase.from("attendance").insert({
+      const { data, error } = await supabase.from("attendance").insert({
         teacher_id: teacherId,
         date: today,
         check_in: currentTime,
         status: "present",
         latitude,
         longitude,
-      } as any);
+      } as any).select().single();
 
       if (error) {
         console.error("Check-in error:", error);
-        toast.error("Check-in failed. You may have already checked in today.");
+        toast.error("Check-in failed.");
         setChecking(false);
         return;
       }
 
+      setAttendanceId(data?.id || null);
       setChecking(false);
-      setDone(true);
+      setCheckedIn(true);
+      setCheckedOut(false);
       setCheckInTime(checkNow);
-      setElapsed(0);
+      setCurrentSessionElapsed(0);
       toast.success("Checked in successfully!");
     } catch (err: any) {
       setChecking(false);
@@ -122,6 +179,54 @@ const CheckInScreen = () => {
     }
   };
 
+  const handleCheckOutRequest = () => {
+    const n = new Date();
+    setCheckoutTime(n.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true }));
+    setShowCheckoutDialog(true);
+  };
+
+  const handleCheckOutConfirm = async () => {
+    setShowCheckoutDialog(false);
+    setCheckingOut(true);
+    try {
+      const position = await requestLocation();
+      const { latitude, longitude } = position.coords;
+      const n = new Date();
+      const currentTime = `${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
+
+      if (attendanceId) {
+        await supabase
+          .from("attendance")
+          .update({ check_out: currentTime, latitude, longitude } as any)
+          .eq("id", attendanceId);
+      }
+
+      const sessionSecs = currentSessionElapsed;
+      setCompletedSeconds((prev) => prev + sessionSecs);
+      setCurrentSessionElapsed(0);
+      setCheckedIn(false);
+      setCheckedOut(true);
+      setAttendanceId(null);
+      toast.success("Checked out successfully!");
+    } catch (err: any) {
+      if (err.code === 1) {
+        toast.error("Please enable location to check out");
+      } else {
+        toast.error("Could not get location. Please try again.");
+      }
+    } finally {
+      setCheckingOut(false);
+    }
+  };
+
+  const status = getStatus();
+  const statusLabel = status === "present" ? "Present" : status === "in_progress" ? "In Progress" : "Absent";
+  const statusColor = status === "present"
+    ? "bg-success/15 text-success border-success/30 hover:bg-success/20"
+    : status === "in_progress"
+    ? "bg-blue-500/15 text-blue-500 border-blue-500/30 hover:bg-blue-500/20"
+    : "bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/20";
+
   return (
     <div className="min-h-screen bg-card flex flex-col px-6 pt-6 pb-8 max-w-md mx-auto">
       <button onClick={() => navigate("/dashboard")} className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center mb-8">
@@ -129,38 +234,33 @@ const CheckInScreen = () => {
       </button>
 
       <div className="flex-1 flex flex-col items-center justify-center">
-        <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 transition-colors ${done ? "bg-success/20" : "bg-accent/20"}`}>
-          {done ? <CheckCircle2 className="w-12 h-12 text-success" /> : <MapPin className="w-12 h-12 text-accent" />}
+        <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 transition-colors ${checkedIn ? "bg-success/20" : checkedOut ? "bg-blue-500/20" : "bg-accent/20"}`}>
+          {checkedIn ? <CheckCircle2 className="w-12 h-12 text-success" /> : checkedOut ? <Clock className="w-12 h-12 text-blue-500" /> : <MapPin className="w-12 h-12 text-accent" />}
         </div>
 
         <h2 className="text-lg font-bold text-foreground mb-1">
-          {done ? "Checked In Successfully!" : "School Campus"}
+          {checkedIn ? "Currently Checked In" : checkedOut ? "Checked Out" : "School Campus"}
         </h2>
         <p className="text-muted-foreground text-sm mb-4">Delhi Public School, Sector 24</p>
 
-        {done && (
-          <Badge className={`mb-6 text-sm px-4 py-1 ${
-            isLate ? "bg-amber-500/15 text-amber-600 border-amber-500/30 hover:bg-amber-500/20" : "bg-success/15 text-success border-success/30 hover:bg-success/20"
-          }`}>
-            {isLate ? "Late" : "Present"}
+        {(checkedIn || checkedOut) && (
+          <Badge className={`mb-6 text-sm px-4 py-1 ${statusColor}`}>
+            {statusLabel}
           </Badge>
         )}
 
-        {done ? (
-          <div className="bg-secondary rounded-xl px-8 py-5 mb-4 shadow-card text-center">
-            <p className="text-xs text-muted-foreground font-medium mb-1">Duration</p>
-            <p className="text-4xl font-extrabold text-foreground tracking-tight font-mono">{formatTimer(elapsed)}</p>
-          </div>
-        ) : (
-          <div className="bg-secondary rounded-xl px-8 py-4 mb-8 shadow-card">
-            <p className="text-xs text-muted-foreground text-center font-medium">Current Time</p>
-            <p className="text-3xl font-extrabold text-foreground text-center tracking-tight">{time}</p>
-          </div>
-        )}
+        <div className="bg-secondary rounded-xl px-8 py-5 mb-4 shadow-card text-center">
+          <p className="text-xs text-muted-foreground font-medium mb-1">
+            {checkedIn ? "Working Time" : checkedOut ? "Total Time Today" : "Current Time"}
+          </p>
+          <p className="text-4xl font-extrabold text-foreground tracking-tight font-mono">
+            {checkedIn || checkedOut ? formatTimer(totalElapsed) : time}
+          </p>
+        </div>
 
-        {done && checkInTime && (
+        {checkedIn && checkInTime && (
           <p className="text-xs text-muted-foreground mb-6">
-            Checked in at {checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}
+            Session started at {checkInTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}
           </p>
         )}
 
@@ -169,25 +269,52 @@ const CheckInScreen = () => {
           <p className="text-sm font-medium text-success">You are within school premises</p>
         </div>
 
-        {!done && (
+        {!checkedIn && (
           <button
             onClick={handleCheckIn}
             disabled={checking}
             className="w-full py-4 rounded-xl bg-success text-success-foreground font-bold text-base shadow-card-lg transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-70"
           >
-            {checking ? <span className="animate-pulse-gentle">Fetching Location...</span> : "Check In"}
+            {checking ? <span className="animate-pulse-gentle">Fetching Location...</span> : checkedOut ? "Check In Again" : "Check In"}
           </button>
         )}
 
-        {done && (
+        {checkedIn && (
+          <button
+            onClick={handleCheckOutRequest}
+            disabled={checkingOut}
+            className="w-full py-4 rounded-xl bg-destructive text-destructive-foreground font-bold text-base shadow-card-lg transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-70"
+          >
+            {checkingOut ? <span className="animate-pulse-gentle">Fetching Location...</span> : "Check Out"}
+          </button>
+        )}
+
+        {(checkedIn || checkedOut) && (
           <button
             onClick={() => navigate("/dashboard")}
-            className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-bold text-base shadow-card-lg transition-all hover:opacity-90 active:scale-[0.98]"
+            className="w-full py-3 mt-3 rounded-xl bg-secondary text-foreground font-bold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
           >
             Go to Dashboard
           </button>
         )}
       </div>
+
+      <AlertDialog open={showCheckoutDialog} onOpenChange={setShowCheckoutDialog}>
+        <AlertDialogContent className="max-w-sm mx-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Check-out</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="block">Check out at {checkoutTime}?</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCheckOutConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Yes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
