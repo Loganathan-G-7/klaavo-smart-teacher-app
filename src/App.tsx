@@ -12,6 +12,7 @@ import MyClassesScreen from "./pages/MyClassesScreen";
 import StudentListScreen from "./pages/StudentListScreen";
 import StudentProfileScreen from "./pages/StudentProfileScreen";
 import LeaveScreen from "./pages/LeaveScreen";
+import TeacherAttendanceScreen from "./pages/TeacherAttendanceScreen";
 import ChatListScreen, { ChatScreen } from "./pages/ChatScreen";
 import NotificationsScreen from "./pages/NotificationsScreen";
 import ProfileScreen from "./pages/ProfileScreen";
@@ -43,6 +44,7 @@ const App = () => (
           <Route path="/class/:classId" element={<StudentListScreen />} />
           <Route path="/student/:studentId" element={<StudentProfileScreen />} />
           <Route path="/leave" element={<LeaveScreen />} />
+          <Route path="/attendance" element={<TeacherAttendanceScreen />} />
           <Route path="/chat" element={<ChatListScreen />} />
           <Route path="/chat/:chatId" element={<ChatScreen />} />
           <Route path="/notifications" element={<NotificationsScreen />} />
