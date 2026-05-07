@@ -380,17 +380,7 @@ const DashboardScreen = () => {
         </div>
       </div>
 
-      {/* Bottom Nav */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-card border-t border-border px-4 py-2 flex justify-around items-center shadow-card-lg">
-        {navItems.map((item) => (
-          <button key={item.label} onClick={() => navigate(item.path)} className="flex flex-col items-center gap-1 py-1 px-3">
-            <item.icon className={`w-5 h-5 ${item.active ? "text-primary" : "text-muted-foreground"}`} />
-            <span className={`text-[10px] font-semibold ${item.active ? "text-primary" : "text-muted-foreground"}`}>
-              {item.label}
-            </span>
-          </button>
-        ))}
-      </div>
+      <BottomNav />
 
       {/* Check-out Confirmation Dialog */}
       <AlertDialog open={showCheckoutDialog} onOpenChange={setShowCheckoutDialog}>
