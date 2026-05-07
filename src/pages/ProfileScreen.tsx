@@ -161,6 +161,7 @@ const ProfileScreen = () => {
           Logout
         </button>
       </div>
+      <BottomNav />
     </div>
   );
 };
