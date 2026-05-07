@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Search, Users, Send, Paperclip, Check, CheckCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import BottomNav from "@/components/BottomNav";
 
 const groupChats = [
   { id: "g1", name: "All Teachers", members: 45, lastMsg: "Staff meeting at 3 PM today", time: "10:30 AM", unread: 3 },
