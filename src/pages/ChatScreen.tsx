@@ -106,6 +106,7 @@ const ChatListScreen = () => {
           </div>
         )}
       </div>
+      <BottomNav />
     </div>
   );
 };
