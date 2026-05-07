@@ -437,13 +437,14 @@ const LeaveScreen = () => {
                     ))
                   )}
                 </TabsContent>
-              ))}
-            </Tabs>
-          </div>
-        )}
+                ))}
+              </Tabs>
+            </div>
+          )}
+        </div>
+        <BottomNav />
       </div>
-    </div>
-  );
-};
-
-export default LeaveScreen;
+    );
+  };
+  
+  export default LeaveScreen;
