@@ -104,6 +104,7 @@ const MyClassesScreen = () => {
           </div>
         )}
       </div>
+      <BottomNav />
     </div>
   );
 };
