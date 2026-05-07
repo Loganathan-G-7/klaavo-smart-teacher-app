@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Camera, Phone, Mail, Droplet, Calendar, LogOut, Globe, Bell as BellIcon } from "lucide-react";
+import BottomNav from "@/components/BottomNav";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
