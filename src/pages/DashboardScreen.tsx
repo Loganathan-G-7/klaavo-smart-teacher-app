@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Home, BookOpen, CalendarOff, MessageCircle, User, Clock, NotebookPen, FileText, Image, MapPinOff, CalendarDays, ClipboardList, ShieldCheck, Settings } from "lucide-react";
+import { Bell, Clock, NotebookPen, FileText, Image, MapPinOff, CalendarDays, ClipboardList, ShieldCheck, Settings } from "lucide-react";
+import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -19,14 +20,6 @@ const classes = [
   { name: "Class 2-B", subject: "Mathematics", time: "10:30 AM", color: "bg-success/20 text-success" },
   { name: "Class 5-B", subject: "Science", time: "11:30 AM", color: "bg-destructive/15 text-destructive" },
   { name: "Class 3-A", subject: "Hindi", time: "1:00 PM", color: "bg-primary/15 text-primary" },
-];
-
-const navItems = [
-  { icon: Home, label: "Home", active: true, path: "/dashboard" },
-  { icon: BookOpen, label: "Classes", active: false, path: "/classes" },
-  { icon: CalendarOff, label: "Leave", active: false, path: "/leave" },
-  { icon: MessageCircle, label: "Chat", active: false, path: "/chat" },
-  { icon: User, label: "Profile", active: false, path: "/profile" },
 ];
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -387,17 +380,7 @@ const DashboardScreen = () => {
         </div>
       </div>
 
-      {/* Bottom Nav */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-card border-t border-border px-4 py-2 flex justify-around items-center shadow-card-lg">
-        {navItems.map((item) => (
-          <button key={item.label} onClick={() => navigate(item.path)} className="flex flex-col items-center gap-1 py-1 px-3">
-            <item.icon className={`w-5 h-5 ${item.active ? "text-primary" : "text-muted-foreground"}`} />
-            <span className={`text-[10px] font-semibold ${item.active ? "text-primary" : "text-muted-foreground"}`}>
-              {item.label}
-            </span>
-          </button>
-        ))}
-      </div>
+      <BottomNav />
 
       {/* Check-out Confirmation Dialog */}
       <AlertDialog open={showCheckoutDialog} onOpenChange={setShowCheckoutDialog}>
