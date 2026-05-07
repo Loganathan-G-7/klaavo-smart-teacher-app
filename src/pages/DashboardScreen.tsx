@@ -22,14 +22,6 @@ const classes = [
   { name: "Class 3-A", subject: "Hindi", time: "1:00 PM", color: "bg-primary/15 text-primary" },
 ];
 
-const navItems = [
-  { icon: Home, label: "Home", active: true, path: "/dashboard" },
-  { icon: BookOpen, label: "Classes", active: false, path: "/classes" },
-  { icon: CalendarOff, label: "Leave", active: false, path: "/leave" },
-  { icon: MessageCircle, label: "Chat", active: false, path: "/chat" },
-  { icon: User, label: "Profile", active: false, path: "/profile" },
-];
-
 const pad = (n: number) => String(n).padStart(2, "0");
 
 type AttendanceStatus = "absent" | "in_progress" | "present";
