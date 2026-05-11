@@ -5,20 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-const studentsData = [
-  { id: 1, name: "Aarav Sharma", roll: "01", feesPending: true },
-  { id: 2, name: "Ananya Gupta", roll: "02", feesPending: false },
-  { id: 3, name: "Bhavya Patel", roll: "03", feesPending: false },
-  { id: 4, name: "Diya Verma", roll: "04", feesPending: true },
-  { id: 5, name: "Ishaan Kumar", roll: "05", feesPending: false },
-  { id: 6, name: "Kavya Singh", roll: "06", feesPending: false },
-  { id: 7, name: "Lakshay Mehra", roll: "07", feesPending: true },
-  { id: 8, name: "Myra Joshi", roll: "08", feesPending: false },
-  { id: 9, name: "Neha Reddy", roll: "09", feesPending: false },
-  { id: 10, name: "Pranav Iyer", roll: "10", feesPending: false },
-  { id: 11, name: "Riya Chopra", roll: "11", feesPending: true },
-  { id: 12, name: "Saanvi Nair", roll: "12", feesPending: false },
-];
+interface Student {
+  id: number;
+  name: string;
+  roll_no: number | null;
+}
 
 type AttendanceStatus = "P" | "A" | "L" | null;
 
