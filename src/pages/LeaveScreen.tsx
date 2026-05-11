@@ -313,7 +313,7 @@ const LeaveScreen = () => {
                     <button className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border py-3 text-sm text-muted-foreground">
                       <Upload className="w-4 h-4" />Upload Document
                     </button>
-                    <button onClick={handleSubmit} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm">Submit Leave Request</button>
+                    <button onClick={handleSubmit} disabled={submitting} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm disabled:opacity-60">{submitting ? "Submitting…" : "Submit Leave Request"}</button>
                   </div>
                 </DialogContent>
               </Dialog>
