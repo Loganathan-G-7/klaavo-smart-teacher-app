@@ -68,7 +68,7 @@ const LoginScreen = () => {
       {/* Submit Button */}
       <button
         onClick={handleSubmit}
-        disabled={phone.length !== 10}
+        disabled={phone.length !== 10 || checking}
         className="w-14 h-14 rounded-full bg-primary flex items-center justify-center shadow-card-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100 mt-4"
       >
         <ArrowRight className="w-6 h-6 text-primary-foreground" />
