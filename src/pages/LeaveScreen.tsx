@@ -460,7 +460,9 @@ const LeaveScreen = () => {
               </TabsList>
               {["pending", "approved", "rejected"].map((t) => (
                 <TabsContent key={t} value={t} className="mt-0 space-y-3">
-                  {filteredLeaves.length === 0 ? (
+                  {leavesLoading ? (
+                    <div className="text-center py-12 text-sm text-muted-foreground">Loading…</div>
+                  ) : filteredLeaves.length === 0 ? (
                     <div className="text-center py-12">
                       <FileText className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
                       <p className="text-sm text-muted-foreground">No {t} leaves</p>
@@ -469,10 +471,10 @@ const LeaveScreen = () => {
                     filteredLeaves.map((leave) => (
                       <div key={leave.id} className="bg-card rounded-xl p-4 shadow-card">
                         <div className="flex items-start justify-between mb-2">
-                          <p className="font-bold text-foreground text-sm">{leave.type}</p>
+                          <p className="font-bold text-foreground text-sm capitalize">{leave.leave_type} Leave</p>
                           <Badge className={cn("text-[10px] px-2 py-0.5 capitalize", statusColors[leave.status])}>{leave.status}</Badge>
                         </div>
-                        <p className="text-xs text-muted-foreground mb-1">{leave.from} — {leave.to}</p>
+                        <p className="text-xs text-muted-foreground mb-1">{format(new Date(leave.from_date), "dd MMM yyyy")} — {format(new Date(leave.to_date), "dd MMM yyyy")}</p>
                         <p className="text-xs text-muted-foreground/70">{leave.reason}</p>
                       </div>
                     ))
