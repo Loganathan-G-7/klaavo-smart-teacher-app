@@ -115,7 +115,7 @@ const StudentListScreen = () => {
           </button>
           <div>
             <h1 className="text-primary-foreground text-lg font-bold">{className}</h1>
-            <p className="text-primary-foreground/60 text-xs">{studentsData.length} students</p>
+            <p className="text-primary-foreground/60 text-xs">{students.length} students</p>
           </div>
         </div>
 
