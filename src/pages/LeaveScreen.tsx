@@ -20,12 +20,14 @@ const leaveBalance = [
   { type: "EM", label: "Emergency", used: 0, total: 3 },
 ];
 
-const leavesData = [
-  { id: 1, type: "Casual Leave", from: "10 Mar 2026", to: "11 Mar 2026", reason: "Family function", status: "pending" },
-  { id: 2, type: "Medical Leave", from: "25 Feb 2026", to: "26 Feb 2026", reason: "Doctor appointment", status: "approved" },
-  { id: 3, type: "Casual Leave", from: "14 Feb 2026", to: "14 Feb 2026", reason: "Personal work", status: "approved" },
-  { id: 4, type: "Emergency Leave", from: "5 Feb 2026", to: "5 Feb 2026", reason: "Family emergency", status: "rejected" },
-];
+interface LeaveRow {
+  id: string;
+  leave_type: string;
+  from_date: string;
+  to_date: string;
+  reason: string | null;
+  status: string;
+}
 
 const statusColors: Record<string, string> = {
   pending: "bg-amber-500/15 text-amber-600 border-amber-500/30",
