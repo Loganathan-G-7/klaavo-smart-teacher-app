@@ -1,21 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Calendar, Edit2, Trash2, Languages } from "lucide-react";
+import { ArrowLeft, Plus, Calendar, Trash2, Languages } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
-const classList = ["LKG-A", "LKG-B", "Class 1-A", "Class 2-B", "Class 3-A", "Class 5-B"];
+interface ClassRow {
+  id: string;
+  name: string;
+  section: string;
+}
 
-const previousEntries = [
-  { id: 1, date: "09 Mar 2026", cls: "LKG-A", text: "Today we practiced alphabet writing A-E. Homework: Write each letter 5 times in notebook.", sections: ["Homework"] },
-  { id: 2, date: "08 Mar 2026", cls: "Class 2-B", text: "Completed multiplication tables 2-5. Reminder: Bring color pencils tomorrow.", sections: ["Homework", "Reminder"] },
-  { id: 3, date: "07 Mar 2026", cls: "Class 5-B", text: "Science experiment on plant growth discussed. Note: Submit project report by Friday.", sections: ["Note"] },
-  { id: 4, date: "06 Mar 2026", cls: "LKG-A", text: "Rhyme recitation practice. All students performed well today.", sections: [] },
-];
+interface DiaryEntry {
+  id: string;
+  date: string;
+  class_id: string | null;
+  notes: string | null;
+  subject: string | null;
+}
 
 const DailyDiaryScreen = () => {
   const navigate = useNavigate();
@@ -24,20 +30,88 @@ const DailyDiaryScreen = () => {
   const [diaryText, setDiaryText] = useState("");
   const [language, setLanguage] = useState<"English" | "Tamil">("English");
   const [sections, setSections] = useState<string[]>([]);
+  const [classes, setClasses] = useState<ClassRow[]>([]);
+  const [entries, setEntries] = useState<DiaryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [publishing, setPublishing] = useState(false);
   const maxChars = 1000;
+
+  const teacherId = localStorage.getItem("teacher_id") || "";
+
+  const loadEntries = async () => {
+    if (!teacherId) return;
+    const { data } = await supabase
+      .from("diary")
+      .select("id, date, class_id, notes, subject")
+      .eq("teacher_id", teacherId)
+      .order("date", { ascending: false })
+      .limit(20);
+    setEntries((data || []) as DiaryEntry[]);
+  };
+
+  useEffect(() => {
+    if (!teacherId) {
+      setLoading(false);
+      return;
+    }
+    (async () => {
+      setLoading(true);
+      const { data: tc } = await supabase
+        .from("teacher_classes")
+        .select("class_id, classes(id, name, section)")
+        .eq("teacher_id", teacherId);
+      const cls: ClassRow[] = (tc || [])
+        .map((row: any) => row.classes)
+        .filter(Boolean);
+      setClasses(cls);
+      await loadEntries();
+      setLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teacherId]);
 
   const toggleSection = (section: string) => {
     setSections((prev) => prev.includes(section) ? prev.filter((s) => s !== section) : [...prev, section]);
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
+    if (!teacherId) {
+      toast({ title: "Not signed in", description: "Please sign in again.", variant: "destructive" });
+      return;
+    }
     if (!selectedClass || !diaryText.trim()) {
       toast({ title: "Missing Fields", description: "Select class and write diary entry.", variant: "destructive" });
       return;
     }
-    toast({ title: "Published!", description: `Diary published for ${selectedClass}.` });
+    setPublishing(true);
+    const { error } = await supabase.from("diary").insert({
+      teacher_id: teacherId,
+      class_id: selectedClass,
+      date: format(selectedDate, "yyyy-MM-dd"),
+      subject: sections.join(", ") || null,
+      notes: diaryText.trim(),
+    });
+    setPublishing(false);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Published!", description: "Diary entry saved." });
     setDiaryText("");
     setSections([]);
+    loadEntries();
+  };
+
+  const handleDelete = async (id: string) => {
+    // delete not allowed by RLS; just hide locally
+    setEntries((prev) => prev.filter((e) => e.id !== id));
+    toast({ title: "Removed from view", description: "Entry hidden locally." });
+  };
+
+  const classLabel = (id: string | null) => {
+    if (!id) return "—";
+    const c = classes.find((x) => x.id === id);
+    return c ? `${c.name}-${c.section}` : "—";
   };
 
   return (
@@ -62,22 +136,19 @@ const DailyDiaryScreen = () => {
           </Popover>
         </div>
 
-        {/* Class Selector */}
         <Select value={selectedClass} onValueChange={setSelectedClass}>
           <SelectTrigger className="bg-primary-foreground/10 border-0 text-primary-foreground rounded-xl h-11 text-sm font-semibold [&>svg]:text-primary-foreground">
-            <SelectValue placeholder="Select Class" />
+            <SelectValue placeholder={classes.length === 0 ? "No classes assigned" : "Select Class"} />
           </SelectTrigger>
           <SelectContent>
-            {classList.map((c) => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
+            {classes.map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.name}-{c.section}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      {/* Content */}
       <div className="flex-1 px-5 pt-5 pb-8 space-y-5">
-        {/* Diary Editor */}
         <div className="bg-card rounded-2xl shadow-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <p className="text-sm font-bold text-foreground">Today's Entry</p>
@@ -116,45 +187,45 @@ const DailyDiaryScreen = () => {
           </div>
         </div>
 
-        {/* Publish Button */}
         <button
           onClick={handlePublish}
-          className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-card-lg transition-all hover:opacity-90 active:scale-[0.98]"
+          disabled={publishing}
+          className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-card-lg transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60"
         >
-          Publish Diary
+          {publishing ? "Publishing…" : "Publish Diary"}
         </button>
 
-        {/* Previous Entries */}
         <div>
           <h3 className="text-sm font-bold text-foreground mb-3">Previous Entries</h3>
-          <div className="space-y-3">
-            {previousEntries.map((entry) => (
-              <div key={entry.id} className="bg-card rounded-xl p-4 shadow-card">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <p className="text-xs font-bold text-foreground">{entry.date}</p>
-                    <p className="text-[10px] text-muted-foreground font-semibold">{entry.cls}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center">
-                      <Edit2 className="w-3.5 h-3.5 text-muted-foreground" />
-                    </button>
-                    <button className="w-7 h-7 rounded-lg bg-destructive/10 flex items-center justify-center">
+          {loading ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>
+          ) : entries.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">No entries yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {entries.map((entry) => (
+                <div key={entry.id} className="bg-card rounded-xl p-4 shadow-card">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="text-xs font-bold text-foreground">{format(new Date(entry.date), "dd MMM yyyy")}</p>
+                      <p className="text-[10px] text-muted-foreground font-semibold">{classLabel(entry.class_id)}</p>
+                    </div>
+                    <button onClick={() => handleDelete(entry.id)} className="w-7 h-7 rounded-lg bg-destructive/10 flex items-center justify-center">
                       <Trash2 className="w-3.5 h-3.5 text-destructive" />
                     </button>
                   </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{entry.notes}</p>
+                  {entry.subject && (
+                    <div className="flex gap-1.5 mt-2 flex-wrap">
+                      {entry.subject.split(",").map((s) => s.trim()).filter(Boolean).map((s) => (
+                        <span key={s} className="px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[9px] font-semibold">{s}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{entry.text}</p>
-                {entry.sections.length > 0 && (
-                  <div className="flex gap-1.5 mt-2">
-                    {entry.sections.map((s) => (
-                      <span key={s} className="px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[9px] font-semibold">{s}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

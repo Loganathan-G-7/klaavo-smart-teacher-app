@@ -5,20 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-const studentsData = [
-  { id: 1, name: "Aarav Sharma", roll: "01", feesPending: true },
-  { id: 2, name: "Ananya Gupta", roll: "02", feesPending: false },
-  { id: 3, name: "Bhavya Patel", roll: "03", feesPending: false },
-  { id: 4, name: "Diya Verma", roll: "04", feesPending: true },
-  { id: 5, name: "Ishaan Kumar", roll: "05", feesPending: false },
-  { id: 6, name: "Kavya Singh", roll: "06", feesPending: false },
-  { id: 7, name: "Lakshay Mehra", roll: "07", feesPending: true },
-  { id: 8, name: "Myra Joshi", roll: "08", feesPending: false },
-  { id: 9, name: "Neha Reddy", roll: "09", feesPending: false },
-  { id: 10, name: "Pranav Iyer", roll: "10", feesPending: false },
-  { id: 11, name: "Riya Chopra", roll: "11", feesPending: true },
-  { id: 12, name: "Saanvi Nair", roll: "12", feesPending: false },
-];
+interface Student {
+  id: number;
+  name: string;
+  roll_no: number | null;
+}
 
 type AttendanceStatus = "P" | "A" | "L" | null;
 
@@ -31,6 +22,9 @@ const StudentListScreen = () => {
   const [search, setSearch] = useState("");
   const [attendance, setAttendance] = useState<Record<number, AttendanceStatus>>({});
   const [saving, setSaving] = useState(false);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
@@ -41,28 +35,28 @@ const StudentListScreen = () => {
     year: "numeric",
   });
 
-  // Load previously saved attendance on mount
   useEffect(() => {
-    const loadAttendance = async () => {
-      if (!classId) return;
-      const { data } = await supabase
-        .from("student_attendance")
-        .select("student_id, status")
-        .eq("class_id", classId)
-        .eq("date", todayStr);
-
-      if (data && data.length > 0) {
+    if (!classId) return;
+    (async () => {
+      setLoading(true);
+      const [studentsRes, attendanceRes] = await Promise.all([
+        supabase.from("students").select("id, name, roll_no").eq("class_id", classId).order("roll_no", { ascending: true }),
+        supabase.from("student_attendance").select("student_id, status").eq("class_id", classId).eq("date", todayStr),
+      ]);
+      if (studentsRes.error) setError(studentsRes.error.message);
+      else setStudents((studentsRes.data || []) as Student[]);
+      if (attendanceRes.data && attendanceRes.data.length > 0) {
         const loaded: Record<number, AttendanceStatus> = {};
-        data.forEach((row) => {
+        attendanceRes.data.forEach((row) => {
           loaded[row.student_id] = row.status as AttendanceStatus;
         });
         setAttendance(loaded);
       }
-    };
-    loadAttendance();
+      setLoading(false);
+    })();
   }, [classId, todayStr]);
 
-  const filtered = studentsData.filter((s) =>
+  const filtered = students.filter((s) =>
     s.name.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -121,7 +115,7 @@ const StudentListScreen = () => {
           </button>
           <div>
             <h1 className="text-primary-foreground text-lg font-bold">{className}</h1>
-            <p className="text-primary-foreground/60 text-xs">{studentsData.length} students</p>
+            <p className="text-primary-foreground/60 text-xs">{students.length} students</p>
           </div>
         </div>
 
@@ -146,7 +140,13 @@ const StudentListScreen = () => {
 
       {/* Student List */}
       <div className="flex-1 px-5 pt-4 pb-24 space-y-2">
-        {filtered.map((student) => (
+        {loading ? (
+          <p className="text-center text-sm text-muted-foreground py-12">Loading students…</p>
+        ) : error ? (
+          <p className="text-center text-sm text-destructive py-12">{error}</p>
+        ) : filtered.length === 0 ? (
+          <p className="text-center text-sm text-muted-foreground py-12">No students found</p>
+        ) : filtered.map((student) => (
           <div
             key={student.id}
             className="bg-card rounded-xl p-3.5 shadow-card flex items-center gap-3"
@@ -178,13 +178,8 @@ const StudentListScreen = () => {
                 <p className="font-semibold text-foreground text-sm truncate">
                   {student.name}
                 </p>
-                {student.feesPending && (
-                  <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30 text-[10px] px-1.5 py-0 hover:bg-amber-500/20 shrink-0">
-                    Fees Pending
-                  </Badge>
-                )}
               </div>
-              <p className="text-xs text-muted-foreground">Roll No: {student.roll}</p>
+              <p className="text-xs text-muted-foreground">Roll No: {student.roll_no ?? "—"}</p>
             </button>
 
             {/* Attendance Buttons */}

@@ -20,12 +20,14 @@ const leaveBalance = [
   { type: "EM", label: "Emergency", used: 0, total: 3 },
 ];
 
-const leavesData = [
-  { id: 1, type: "Casual Leave", from: "10 Mar 2026", to: "11 Mar 2026", reason: "Family function", status: "pending" },
-  { id: 2, type: "Medical Leave", from: "25 Feb 2026", to: "26 Feb 2026", reason: "Doctor appointment", status: "approved" },
-  { id: 3, type: "Casual Leave", from: "14 Feb 2026", to: "14 Feb 2026", reason: "Personal work", status: "approved" },
-  { id: 4, type: "Emergency Leave", from: "5 Feb 2026", to: "5 Feb 2026", reason: "Family emergency", status: "rejected" },
-];
+interface LeaveRow {
+  id: string;
+  leave_type: string;
+  from_date: string;
+  to_date: string;
+  reason: string | null;
+  status: string;
+}
 
 const statusColors: Record<string, string> = {
   pending: "bg-amber-500/15 text-amber-600 border-amber-500/30",
@@ -88,8 +90,28 @@ const LeaveScreen = () => {
   const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 0 }));
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [leaves, setLeaves] = useState<LeaveRow[]>([]);
+  const [leavesLoading, setLeavesLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const teacherId = localStorage.getItem("teacher_id") || "";
+
+  const loadLeaves = async () => {
+    if (!teacherId) return;
+    setLeavesLoading(true);
+    const { data, error } = await supabase
+      .from("leave_requests")
+      .select("id, leave_type, from_date, to_date, reason, status")
+      .eq("teacher_id", teacherId)
+      .order("created_at", { ascending: false });
+    if (!error && data) setLeaves(data as LeaveRow[]);
+    setLeavesLoading(false);
+  };
+
+  useEffect(() => {
+    if (mainTab === "leave") loadLeaves();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mainTab, teacherId]);
 
   useEffect(() => {
     if (!teacherId || mainTab !== "attendance") return;
@@ -161,16 +183,35 @@ const LeaveScreen = () => {
 
   const totalMonthHours = formatHoursMin(summary.totalSeconds);
 
-  const filteredLeaves = leavesData.filter((l) => l.status === leaveTab);
+  const filteredLeaves = leaves.filter((l) => l.status === leaveTab);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!teacherId) {
+      toast({ title: "Not signed in", description: "Please sign in again.", variant: "destructive" });
+      return;
+    }
     if (!leaveType || !fromDate || !toDate || !reason.trim()) {
       toast({ title: "Missing Fields", description: "Please fill all required fields.", variant: "destructive" });
+      return;
+    }
+    setSubmitting(true);
+    const { error } = await supabase.from("leave_requests").insert({
+      teacher_id: teacherId,
+      leave_type: leaveType,
+      from_date: format(fromDate, "yyyy-MM-dd"),
+      to_date: format(toDate, "yyyy-MM-dd"),
+      reason: reason.trim(),
+      status: "pending",
+    });
+    setSubmitting(false);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
       return;
     }
     toast({ title: "Leave Applied", description: "Your leave request has been submitted." });
     setDialogOpen(false);
     setLeaveType(""); setFromDate(undefined); setToDate(undefined); setReason("");
+    loadLeaves();
   };
 
   const getDayStatus = (day: Date) => {
@@ -272,7 +313,7 @@ const LeaveScreen = () => {
                     <button className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border py-3 text-sm text-muted-foreground">
                       <Upload className="w-4 h-4" />Upload Document
                     </button>
-                    <button onClick={handleSubmit} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm">Submit Leave Request</button>
+                    <button onClick={handleSubmit} disabled={submitting} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm disabled:opacity-60">{submitting ? "Submitting…" : "Submit Leave Request"}</button>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -419,7 +460,9 @@ const LeaveScreen = () => {
               </TabsList>
               {["pending", "approved", "rejected"].map((t) => (
                 <TabsContent key={t} value={t} className="mt-0 space-y-3">
-                  {filteredLeaves.length === 0 ? (
+                  {leavesLoading ? (
+                    <div className="text-center py-12 text-sm text-muted-foreground">Loading…</div>
+                  ) : filteredLeaves.length === 0 ? (
                     <div className="text-center py-12">
                       <FileText className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
                       <p className="text-sm text-muted-foreground">No {t} leaves</p>
@@ -428,10 +471,10 @@ const LeaveScreen = () => {
                     filteredLeaves.map((leave) => (
                       <div key={leave.id} className="bg-card rounded-xl p-4 shadow-card">
                         <div className="flex items-start justify-between mb-2">
-                          <p className="font-bold text-foreground text-sm">{leave.type}</p>
+                          <p className="font-bold text-foreground text-sm capitalize">{leave.leave_type} Leave</p>
                           <Badge className={cn("text-[10px] px-2 py-0.5 capitalize", statusColors[leave.status])}>{leave.status}</Badge>
                         </div>
-                        <p className="text-xs text-muted-foreground mb-1">{leave.from} — {leave.to}</p>
+                        <p className="text-xs text-muted-foreground mb-1">{format(new Date(leave.from_date), "dd MMM yyyy")} — {format(new Date(leave.to_date), "dd MMM yyyy")}</p>
                         <p className="text-xs text-muted-foreground/70">{leave.reason}</p>
                       </div>
                     ))

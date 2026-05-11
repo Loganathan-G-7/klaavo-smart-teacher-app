@@ -82,6 +82,75 @@ export type Database = {
         }
         Relationships: []
       }
+      diary: {
+        Row: {
+          class_id: string | null
+          created_at: string
+          date: string
+          homework: string | null
+          id: string
+          notes: string | null
+          subject: string | null
+          teacher_id: string
+          topic: string | null
+        }
+        Insert: {
+          class_id?: string | null
+          created_at?: string
+          date?: string
+          homework?: string | null
+          id?: string
+          notes?: string | null
+          subject?: string | null
+          teacher_id: string
+          topic?: string | null
+        }
+        Update: {
+          class_id?: string | null
+          created_at?: string
+          date?: string
+          homework?: string | null
+          id?: string
+          notes?: string | null
+          subject?: string | null
+          teacher_id?: string
+          topic?: string | null
+        }
+        Relationships: []
+      }
+      leave_requests: {
+        Row: {
+          created_at: string
+          from_date: string
+          id: string
+          leave_type: string
+          reason: string | null
+          status: string
+          teacher_id: string
+          to_date: string
+        }
+        Insert: {
+          created_at?: string
+          from_date: string
+          id?: string
+          leave_type: string
+          reason?: string | null
+          status?: string
+          teacher_id: string
+          to_date: string
+        }
+        Update: {
+          created_at?: string
+          from_date?: string
+          id?: string
+          leave_type?: string
+          reason?: string | null
+          status?: string
+          teacher_id?: string
+          to_date?: string
+        }
+        Relationships: []
+      }
       student_attendance: {
         Row: {
           class_id: string
@@ -126,6 +195,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      students: {
+        Row: {
+          class_id: string
+          created_at: string
+          id: number
+          name: string
+          photo_url: string | null
+          roll_no: number | null
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          id?: number
+          name: string
+          photo_url?: string | null
+          roll_no?: number | null
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          id?: number
+          name?: string
+          photo_url?: string | null
+          roll_no?: number | null
+        }
+        Relationships: []
       }
       teacher_classes: {
         Row: {

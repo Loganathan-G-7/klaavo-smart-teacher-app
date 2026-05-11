@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Camera, Phone, Mail, Droplet, Calendar, LogOut, Globe, Bell as BellIcon } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
@@ -11,16 +11,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
+import { supabase } from "@/integrations/supabase/client";
 
-const profileInfo = {
-  name: "Priya Sharma",
-  designation: "Senior Teacher",
-  department: "Science Department",
-  mobile: "+91 98765 43210",
-  email: "priya.sharma@dps.edu",
-  bloodGroup: "O+",
-  doj: "15 June 2018",
-};
+interface Teacher {
+  id: string;
+  name: string;
+  designation: string | null;
+  department: string | null;
+  school_name: string | null;
+  phone: string;
+}
 
 const attendanceSummary = [
   { label: "Present", count: 22, color: "text-success bg-success/10" },
@@ -39,11 +40,42 @@ const ProfileScreen = () => {
   const navigate = useNavigate();
   const [language, setLanguage] = useState("english");
   const [notificationsOn, setNotificationsOn] = useState(true);
+  const [teacher, setTeacher] = useState<Teacher | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const teacherId = localStorage.getItem("teacher_id");
+    if (!teacherId) {
+      setError("Not signed in");
+      setLoading(false);
+      return;
+    }
+    (async () => {
+      const { data, error } = await supabase
+        .from("teachers")
+        .select("id, name, designation, department, school_name, phone")
+        .eq("id", teacherId)
+        .maybeSingle();
+      if (error) setError(error.message);
+      else if (!data) setError("Teacher not found");
+      else setTeacher(data as Teacher);
+      setLoading(false);
+    })();
+  }, []);
 
   const handleLogout = () => {
+    localStorage.clear();
     toast({ title: "Logged Out", description: "You have been logged out successfully." });
     navigate("/");
   };
+
+  const initials = (teacher?.name || "")
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
@@ -59,26 +91,38 @@ const ProfileScreen = () => {
         <div className="flex flex-col items-center">
           <div className="relative mb-3">
             <div className="w-24 h-24 rounded-full bg-primary-foreground/15 flex items-center justify-center">
-              <span className="text-3xl font-bold text-primary-foreground">PS</span>
+              <span className="text-3xl font-bold text-primary-foreground">{initials || "—"}</span>
             </div>
             <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-accent flex items-center justify-center shadow-card-lg">
               <Camera className="w-4 h-4 text-accent-foreground" />
             </button>
           </div>
-          <h2 className="text-primary-foreground text-lg font-bold">{profileInfo.name}</h2>
-          <p className="text-primary-foreground/60 text-sm">{profileInfo.designation}</p>
-          <p className="text-primary-foreground/40 text-xs mt-0.5">{profileInfo.department}</p>
+          {loading ? (
+            <>
+              <Skeleton className="h-5 w-32 mb-1.5 bg-primary-foreground/20" />
+              <Skeleton className="h-4 w-24 bg-primary-foreground/20" />
+            </>
+          ) : (
+            <>
+              <h2 className="text-primary-foreground text-lg font-bold">{teacher?.name || "—"}</h2>
+              <p className="text-primary-foreground/60 text-sm">{teacher?.designation || ""}</p>
+              <p className="text-primary-foreground/40 text-xs mt-0.5">{teacher?.department || ""}</p>
+            </>
+          )}
         </div>
       </div>
 
       <div className="flex-1 px-5 pt-5 pb-8 space-y-5">
+        {error && (
+          <div className="bg-destructive/10 text-destructive rounded-xl p-3 text-sm">{error}</div>
+        )}
         {/* Info Cards */}
         <div className="space-y-2">
           {[
-            { icon: Phone, label: "Mobile", value: profileInfo.mobile },
-            { icon: Mail, label: "Email", value: profileInfo.email },
-            { icon: Droplet, label: "Blood Group", value: profileInfo.bloodGroup },
-            { icon: Calendar, label: "Date of Joining", value: profileInfo.doj },
+            { icon: Phone, label: "Mobile", value: teacher?.phone ? `+91 ${teacher.phone}` : "—" },
+            { icon: Mail, label: "School", value: teacher?.school_name || "—" },
+            { icon: Droplet, label: "Department", value: teacher?.department || "—" },
+            { icon: Calendar, label: "Designation", value: teacher?.designation || "—" },
           ].map((item) => (
             <div key={item.label} className="bg-card rounded-xl p-3.5 shadow-card flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -86,7 +130,7 @@ const ProfileScreen = () => {
               </div>
               <div>
                 <p className="text-[11px] text-muted-foreground font-medium">{item.label}</p>
-                <p className="text-sm font-semibold text-foreground">{item.value}</p>
+                {loading ? <Skeleton className="h-4 w-32 mt-1" /> : <p className="text-sm font-semibold text-foreground">{item.value}</p>}
               </div>
             </div>
           ))}
