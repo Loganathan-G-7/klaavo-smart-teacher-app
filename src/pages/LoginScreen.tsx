@@ -2,14 +2,33 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Phone, ArrowRight } from "lucide-react";
 import klaavoLogo from "@/assets/klaavo-logo.png";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const LoginScreen = () => {
   const [phone, setPhone] = useState("");
+  const [checking, setChecking] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = () => {
-    if (phone.length === 10) {
+  const handleSubmit = async () => {
+    if (phone.length !== 10) return;
+    setChecking(true);
+    try {
+      const { data, error } = await supabase
+        .from("teachers")
+        .select("id")
+        .eq("phone", phone)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        toast.error("Mobile number not registered");
+        return;
+      }
       navigate("/otp", { state: { phone } });
+    } catch (e: any) {
+      toast.error(e.message || "Something went wrong");
+    } finally {
+      setChecking(false);
     }
   };
 
