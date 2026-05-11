@@ -140,7 +140,13 @@ const StudentListScreen = () => {
 
       {/* Student List */}
       <div className="flex-1 px-5 pt-4 pb-24 space-y-2">
-        {filtered.map((student) => (
+        {loading ? (
+          <p className="text-center text-sm text-muted-foreground py-12">Loading students…</p>
+        ) : error ? (
+          <p className="text-center text-sm text-destructive py-12">{error}</p>
+        ) : filtered.length === 0 ? (
+          <p className="text-center text-sm text-muted-foreground py-12">No students found</p>
+        ) : filtered.map((student) => (
           <div
             key={student.id}
             className="bg-card rounded-xl p-3.5 shadow-card flex items-center gap-3"
@@ -172,13 +178,8 @@ const StudentListScreen = () => {
                 <p className="font-semibold text-foreground text-sm truncate">
                   {student.name}
                 </p>
-                {student.feesPending && (
-                  <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30 text-[10px] px-1.5 py-0 hover:bg-amber-500/20 shrink-0">
-                    Fees Pending
-                  </Badge>
-                )}
               </div>
-              <p className="text-xs text-muted-foreground">Roll No: {student.roll}</p>
+              <p className="text-xs text-muted-foreground">Roll No: {student.roll_no ?? "—"}</p>
             </button>
 
             {/* Attendance Buttons */}
