@@ -22,6 +22,9 @@ const StudentListScreen = () => {
   const [search, setSearch] = useState("");
   const [attendance, setAttendance] = useState<Record<number, AttendanceStatus>>({});
   const [saving, setSaving] = useState(false);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
@@ -32,28 +35,28 @@ const StudentListScreen = () => {
     year: "numeric",
   });
 
-  // Load previously saved attendance on mount
   useEffect(() => {
-    const loadAttendance = async () => {
-      if (!classId) return;
-      const { data } = await supabase
-        .from("student_attendance")
-        .select("student_id, status")
-        .eq("class_id", classId)
-        .eq("date", todayStr);
-
-      if (data && data.length > 0) {
+    if (!classId) return;
+    (async () => {
+      setLoading(true);
+      const [studentsRes, attendanceRes] = await Promise.all([
+        supabase.from("students").select("id, name, roll_no").eq("class_id", classId).order("roll_no", { ascending: true }),
+        supabase.from("student_attendance").select("student_id, status").eq("class_id", classId).eq("date", todayStr),
+      ]);
+      if (studentsRes.error) setError(studentsRes.error.message);
+      else setStudents((studentsRes.data || []) as Student[]);
+      if (attendanceRes.data && attendanceRes.data.length > 0) {
         const loaded: Record<number, AttendanceStatus> = {};
-        data.forEach((row) => {
+        attendanceRes.data.forEach((row) => {
           loaded[row.student_id] = row.status as AttendanceStatus;
         });
         setAttendance(loaded);
       }
-    };
-    loadAttendance();
+      setLoading(false);
+    })();
   }, [classId, todayStr]);
 
-  const filtered = studentsData.filter((s) =>
+  const filtered = students.filter((s) =>
     s.name.toLowerCase().includes(search.toLowerCase())
   );
 
