@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Camera, Phone, Mail, Droplet, Calendar, LogOut, Globe, Bell as BellIcon } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
@@ -11,16 +11,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
+import { supabase } from "@/integrations/supabase/client";
 
-const profileInfo = {
-  name: "Priya Sharma",
-  designation: "Senior Teacher",
-  department: "Science Department",
-  mobile: "+91 98765 43210",
-  email: "priya.sharma@dps.edu",
-  bloodGroup: "O+",
-  doj: "15 June 2018",
-};
+interface Teacher {
+  id: string;
+  name: string;
+  designation: string | null;
+  department: string | null;
+  school_name: string | null;
+  phone: string;
+}
 
 const attendanceSummary = [
   { label: "Present", count: 22, color: "text-success bg-success/10" },
@@ -39,11 +40,42 @@ const ProfileScreen = () => {
   const navigate = useNavigate();
   const [language, setLanguage] = useState("english");
   const [notificationsOn, setNotificationsOn] = useState(true);
+  const [teacher, setTeacher] = useState<Teacher | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const teacherId = localStorage.getItem("teacher_id");
+    if (!teacherId) {
+      setError("Not signed in");
+      setLoading(false);
+      return;
+    }
+    (async () => {
+      const { data, error } = await supabase
+        .from("teachers")
+        .select("id, name, designation, department, school_name, phone")
+        .eq("id", teacherId)
+        .maybeSingle();
+      if (error) setError(error.message);
+      else if (!data) setError("Teacher not found");
+      else setTeacher(data as Teacher);
+      setLoading(false);
+    })();
+  }, []);
 
   const handleLogout = () => {
+    localStorage.clear();
     toast({ title: "Logged Out", description: "You have been logged out successfully." });
     navigate("/");
   };
+
+  const initials = (teacher?.name || "")
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
