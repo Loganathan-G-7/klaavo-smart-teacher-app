@@ -90,8 +90,28 @@ const LeaveScreen = () => {
   const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 0 }));
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [leaves, setLeaves] = useState<LeaveRow[]>([]);
+  const [leavesLoading, setLeavesLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const teacherId = localStorage.getItem("teacher_id") || "";
+
+  const loadLeaves = async () => {
+    if (!teacherId) return;
+    setLeavesLoading(true);
+    const { data, error } = await supabase
+      .from("leave_requests")
+      .select("id, leave_type, from_date, to_date, reason, status")
+      .eq("teacher_id", teacherId)
+      .order("created_at", { ascending: false });
+    if (!error && data) setLeaves(data as LeaveRow[]);
+    setLeavesLoading(false);
+  };
+
+  useEffect(() => {
+    if (mainTab === "leave") loadLeaves();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mainTab, teacherId]);
 
   useEffect(() => {
     if (!teacherId || mainTab !== "attendance") return;
