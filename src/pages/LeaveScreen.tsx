@@ -183,16 +183,35 @@ const LeaveScreen = () => {
 
   const totalMonthHours = formatHoursMin(summary.totalSeconds);
 
-  const filteredLeaves = leavesData.filter((l) => l.status === leaveTab);
+  const filteredLeaves = leaves.filter((l) => l.status === leaveTab);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!teacherId) {
+      toast({ title: "Not signed in", description: "Please sign in again.", variant: "destructive" });
+      return;
+    }
     if (!leaveType || !fromDate || !toDate || !reason.trim()) {
       toast({ title: "Missing Fields", description: "Please fill all required fields.", variant: "destructive" });
+      return;
+    }
+    setSubmitting(true);
+    const { error } = await supabase.from("leave_requests").insert({
+      teacher_id: teacherId,
+      leave_type: leaveType,
+      from_date: format(fromDate, "yyyy-MM-dd"),
+      to_date: format(toDate, "yyyy-MM-dd"),
+      reason: reason.trim(),
+      status: "pending",
+    });
+    setSubmitting(false);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
       return;
     }
     toast({ title: "Leave Applied", description: "Your leave request has been submitted." });
     setDialogOpen(false);
     setLeaveType(""); setFromDate(undefined); setToDate(undefined); setReason("");
+    loadLeaves();
   };
 
   const getDayStatus = (day: Date) => {
